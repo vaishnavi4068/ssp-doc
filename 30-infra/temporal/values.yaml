@@ -1,0 +1,106 @@
+# Temporal Helm values for SSP — sandbox sizing; see "Sizing" for nonprod/prod
+server:
+  image:
+    repository: temporalio/server
+    tag: 1.31.2            # pin; upgrade deliberately
+  replicaCount: 1          # per service unless overridden below
+  config:
+    logLevel: info
+    numHistoryShards: 512  # cannot be changed after first deploy; 512 sandbox/nonprod, 2048 prod (new instance)
+    persistence:
+      defaultStore: default
+      visibilityStore: visibility
+      datastores:
+        default:
+          driver: sql
+          sql:
+            driverName: postgres12
+            pluginName: postgres12
+            databaseName: temporal
+            connectAddr: "CLOUDSQL_PRIVATE_IP:5432"   # overridden by --set
+            connectProtocol: tcp
+            user: temporal
+            existingSecret: temporal-db
+            secretKey: password
+            maxConns: 20
+            maxIdleConns: 20
+            maxConnLifetime: "1h"
+            createDatabase: false
+            manageSchema: true
+            tls:
+              enabled: false      # sandbox: private IP only. nonprod/prod: true + caFile (see §6)
+        visibility:
+          driver: sql
+          sql:
+            driverName: postgres12
+            pluginName: postgres12
+            databaseName: temporal_visibility
+            connectAddr: "CLOUDSQL_PRIVATE_IP:5432"
+            connectProtocol: tcp
+            user: temporal
+            existingSecret: temporal-db
+            secretKey: password
+            maxConns: 10
+            maxIdleConns: 10
+            maxConnLifetime: "1h"
+            createDatabase: false
+            manageSchema: true
+            tls:
+              enabled: false
+    namespaces:
+      create: true
+      namespace:
+        - name: ssp
+          retention: 30d
+        - name: ssp-sandbox
+          retention: 7d
+  frontend:
+    replicaCount: 2
+    service:
+      type: ClusterIP
+      port: 7233
+    resources: { requests: { cpu: 200m, memory: 512Mi }, limits: { cpu: "1", memory: 1Gi } }
+  history:
+    replicaCount: 2
+    resources: { requests: { cpu: 500m, memory: 1Gi }, limits: { cpu: "2", memory: 2Gi } }
+  matching:
+    replicaCount: 2
+    resources: { requests: { cpu: 200m, memory: 512Mi }, limits: { cpu: "1", memory: 1Gi } }
+  worker:
+    replicaCount: 1
+    resources: { requests: { cpu: 200m, memory: 512Mi }, limits: { cpu: "1", memory: 1Gi } }
+  metrics:
+    serviceMonitor:
+      enabled: false        # true when Prometheus Operator / managed collection is present
+  additionalEnv:
+    - name: TEMPORAL_ENVIRONMENT
+      value: ssp-sandbox
+  podSecurityContext: { runAsNonRoot: true, runAsUser: 1000, fsGroup: 1000, seccompProfile: { type: RuntimeDefault } }
+  securityContext: { allowPrivilegeEscalation: false, capabilities: { drop: [ALL] }, readOnlyRootFilesystem: true }
+
+schema:
+  useHelmHooks: true
+  backoffLimit: 10
+  ttlSecondsAfterFinished: 86400
+  resources: { requests: { cpu: 100m, memory: 256Mi }, limits: { cpu: 500m, memory: 512Mi } }
+
+admintools:
+  enabled: true
+  resources: { requests: { cpu: 50m, memory: 128Mi }, limits: { cpu: 200m, memory: 256Mi } }
+
+web:
+  enabled: true
+  image:
+    tag: 2.52.0
+  replicaCount: 1
+  service:
+    type: ClusterIP
+    port: 8080
+  additionalEnv:
+    - name: TEMPORAL_UI_PUBLIC_PATH
+      value: ""
+  resources: { requests: { cpu: 50m, memory: 128Mi }, limits: { cpu: 500m, memory: 512Mi } }
+
+serviceAccount:
+  create: true
+  name: temporal

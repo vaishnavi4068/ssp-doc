@@ -1,0 +1,57 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: "{{ .JobName }}"                       # tf-<sha256(run_id:attempt)[:20]>
+  namespace: ssp-runs
+  labels:
+    app: tf-runner
+    ssp.io/run-id: "{{ .RunID }}"
+    ssp.io/tenant: "{{ .TenantLabel }}"        # label-safe form of tenant_id
+    ssp.io/kind: "{{ .Kind }}"                 # plan|apply|refresh|import|destroy
+    ssp.io/lob: "{{ .LobID }}"
+spec:
+  backoffLimit: 0                              # the worker owns retries (new attempt → new job name)
+  activeDeadlineSeconds: {{ .ActiveDeadlineSeconds }}
+  ttlSecondsAfterFinished: {{ .TTLSeconds }}
+  template:
+    metadata:
+      labels: { app: tf-runner, ssp.io/run-id: "{{ .RunID }}" }
+    spec:
+      serviceAccountName: tf-runner
+      automountServiceAccountToken: false
+      restartPolicy: Never
+      nodeSelector: { ssp.io/pool: runs }
+      tolerations: [{ key: ssp.io/runs, operator: Equal, value: "true", effect: NoSchedule }]
+      securityContext: { runAsNonRoot: true, runAsUser: 65532, fsGroup: 65532, seccompProfile: { type: RuntimeDefault } }
+      containers:
+        - name: terraform
+          image: "{{ .RunnerImage }}"
+          args: ["{{ .Kind }}"]
+          env:
+            - { name: RUN_ID, value: "{{ .RunID }}" }
+            - { name: ATTEMPT, value: "{{ .Attempt }}" }
+            - { name: TENANT_ID, value: "{{ .TenantID }}" }
+            - { name: TENANT_PROJECT, value: "{{ .TenantProject }}" }
+            - { name: TENANT_SA, value: "{{ .TenantSA }}" }                 # ssp-tenant@<project>.iam.gserviceaccount.com
+            - { name: STATE_BUCKET, value: "{{ .StateBucket }}" }           # ssp-state-<lob>
+            - { name: STATE_PREFIX, value: "{{ .StatePrefix }}" }           # <project>/
+            - { name: EXPECTED_URI, value: "{{ .ExpectedURI }}" }           # gs://ssp-state-<lob>/<project>/expected/<gen>/
+            - { name: ARTIFACTS_URI, value: "{{ .ArtifactsURI }}" }         # gs://ssp-state-<lob>/<project>/runs/<run_id>/
+            - { name: PLAN_FROM_RUN, value: "{{ .PlanFromRunURI }}" }       # apply only: artifacts URI of the plan run
+            - { name: POLICY_BUNDLE_URI, value: "{{ .PolicyBundleURI }}" }  # gs://ssp-catalog-<env>/policy/<digest>.tar.gz
+            - { name: BATCH_INSTANCES, value: "{{ .BatchInstancesJSON }}" } # for the plan gate input
+            - { name: TF_IN_AUTOMATION, value: "1" }
+            - { name: TF_INPUT, value: "0" }
+            - { name: TF_PLUGIN_CACHE_DIR, value: /opt/terraform/plugin-cache }
+            - { name: TF_CLI_CONFIG_FILE, value: /opt/terraform/provider-mirror.tfrc }
+            - { name: GOOGLE_IMPERSONATE_SERVICE_ACCOUNT, value: "{{ .TenantSA }}" }
+          resources:
+            requests: { cpu: "{{ .CPU }}", memory: "{{ .Memory }}" }        # run class: small 500m/1Gi, large 2/4Gi, xl 4/8Gi
+            limits:   { cpu: "{{ .CPU }}", memory: "{{ .Memory }}" }
+          securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+          volumeMounts:
+            - { name: work, mountPath: /work }
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - { name: work, emptyDir: { sizeLimit: 4Gi } }
+        - { name: tmp, emptyDir: { sizeLimit: 1Gi } }

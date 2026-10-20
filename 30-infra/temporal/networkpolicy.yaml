@@ -1,0 +1,23 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: temporal-frontend-ingress, namespace: temporal }
+spec:
+  podSelector: { matchLabels: { app.kubernetes.io/component: frontend } }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: ssp-cp } }
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: ssp-workers } }
+        - podSelector: {}   # intra-namespace (admintools, web)
+      ports: [{ port: 7233, protocol: TCP }]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: temporal-web-ingress, namespace: temporal }
+spec:
+  podSelector: { matchLabels: { app.kubernetes.io/component: web } }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: gke-gateway } }  # or your ingress namespace
+      ports: [{ port: 8080, protocol: TCP }]

@@ -1,0 +1,62 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ssp-runs
+  labels: { pod-security.kubernetes.io/enforce: baseline, ssp.io/tier: runs }
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: tf-runner
+  namespace: ssp-runs
+  annotations:
+    iam.gke.io/gcp-service-account: ssp-tf-runner@CP_PROJECT.iam.gserviceaccount.com   # Platform SA (kill switch)
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: tf-worker
+  namespace: ssp-workers
+  annotations:
+    iam.gke.io/gcp-service-account: ssp-tf-worker@CP_PROJECT.iam.gserviceaccount.com   # reads run artifacts only
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: { name: tf-job-manager, namespace: ssp-runs }
+rules:
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["create", "get", "list", "watch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["create", "get", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: { name: tf-worker-manages-jobs, namespace: ssp-runs }
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: Role, name: tf-job-manager }
+subjects:
+  - { kind: ServiceAccount, name: tf-worker, namespace: ssp-workers }
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata: { name: runs-quota, namespace: ssp-runs }
+spec:
+  hard: { pods: "60", requests.cpu: "60", requests.memory: 120Gi, count/jobs.batch: "200" }
+---
+apiVersion: v1
+kind: LimitRange
+metadata: { name: runs-limits, namespace: ssp-runs }
+spec:
+  limits:
+    - type: Container
+      default: { cpu: "1", memory: 2Gi }
+      defaultRequest: { cpu: 500m, memory: 1Gi }
+      max: { cpu: "4", memory: 8Gi }

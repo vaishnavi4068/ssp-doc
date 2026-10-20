@@ -1,0 +1,16 @@
+---
+description: ssp-workers rules (Temporal activity workers, runner image, twins)
+globs: ["cmd/**", "internal/**", "runner/**", "twins/**", "deploy/**"]
+alwaysApply: false
+---
+
+# ssp-workers rules
+
+- `RunTerraform` must be idempotent on `(run_id, attempt)`: compute the Job name with `tfrun.JobName`, GET before CREATE, treat AlreadyExists as success, poll every POLL_INTERVAL (30s) with heartbeats, read `result.json` from the artifacts URI as the only source of truth (SSP-WK-001/002).
+- Activity cancellation deletes the Job with foreground propagation. Never leave orphaned Jobs.
+- Error classes: `LockError` retryable; `TerraformError`, `K8sError` non-retryable; `denied` is a business result, not an error.
+- The runner image (`runner/`) has no shell access to secrets, no cloud CLIs, providers from the filesystem mirror only, non-root, read-only root FS. Changes to `Dockerfile`, `runner.sh`, RBAC or NetworkPolicy are T3.
+- Redaction regexes are imported from `ssp-cp/pkg/ssp/redact`; add tests with the known-secret corpus for any new pattern.
+- Post-build activities: idempotency key `<step>:<resource_instance_id>`, receipts via the control-plane internal API, exponential backoff, escalation after 24h (SSP-WF-030).
+- Twins are schema-validated HTTP fakes with `/__admin/seed` and `/__admin/fail` endpoints; keep them in sync with the integration contracts in ssp-doc.
+- Kubernetes manifests mirror ssp-doc/30-infra/tf-worker exactly; if they must differ, change the spec first.

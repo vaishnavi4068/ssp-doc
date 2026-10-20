@@ -1,0 +1,16 @@
+---
+description: ssp-module-<service> rules (Terraform module + catalog bundle source)
+globs: ["**/*.tf", "catalog/**", "policy/**", "import/**", "tests/**", "examples/**"]
+alwaysApply: false
+---
+
+# Module repo rules
+
+- The ServiceSpec (`catalog/service.yaml`) is written first and validated with `catalogctl validate` against ssp-doc/10-product/15-service-spec.schema.json; module variables must match the request schema plus `project_id, name, labels, kms_key_name` (SSP-MOD-001).
+- No provider blocks in the module; `versions.tf` only constrains providers. Every resource type used is listed in `spec.resourceTypes`.
+- Every MUST guardrail has: a `terraform test` assertion, a plan-stage Rego rule, and an entry in the ADR requirements table with the same `REQ-E-…` id.
+- Labels and deletion protection propagate from variables on every resource; outputs are non-secret only.
+- Resource address changes need `moved` blocks; any destroy/replace in the blast-radius gate requires a CHANGELOG `BREAKING` entry (release becomes T3).
+- `import/mapping.yaml` is updated whenever resources or variables change (used by ssp-migrate).
+- Pricing (`catalog/pricing.yaml`) references only request params; mark it as an estimate.
+- Tag `vX.Y.Z` releases only from `main` after CI is green; the release workflow publishes the bundle.

@@ -1,0 +1,38 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: default-deny, namespace: ssp-runs }
+spec: { podSelector: {}, policyTypes: [Ingress, Egress] }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: runner-egress, namespace: ssp-runs }
+spec:
+  podSelector: { matchLabels: { app: tf-runner } }
+  policyTypes: [Egress]
+  egress:
+    - to: [{ ipBlock: { cidr: 169.254.169.254/32 } }]            # GKE metadata server (Workload Identity tokens)
+      ports: [{ port: 80, protocol: TCP }]
+    - to: [{ ipBlock: { cidr: 199.36.153.8/30 } }]               # private.googleapis.com (Private Google Access)
+      ports: [{ port: 443, protocol: TCP }]
+    - to: [{ ipBlock: { cidr: 199.36.153.4/30 } }]               # restricted.googleapis.com (if VPC-SC)
+      ports: [{ port: 443, protocol: TCP }]
+    - to: [{ namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: kube-system } }, podSelector: { matchLabels: { k8s-app: kube-dns } } }]
+      ports: [{ port: 53, protocol: UDP }, { port: 53, protocol: TCP }]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: tf-worker-egress, namespace: ssp-workers }
+spec:
+  podSelector: { matchLabels: { app: tf-worker } }
+  policyTypes: [Egress]
+  egress:
+    - to: [{ namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: temporal } } }]
+      ports: [{ port: 7233, protocol: TCP }]
+    - to: [{ ipBlock: { cidr: 199.36.153.8/30 } }]
+      ports: [{ port: 443, protocol: TCP }]
+    - to: [{ ipBlock: { cidr: 169.254.169.254/32 } }]
+      ports: [{ port: 80, protocol: TCP }]
+    - to: [{ ipBlock: { cidr: KUBE_APISERVER_CIDR } }]           # GKE control plane endpoint (private)
+      ports: [{ port: 443, protocol: TCP }]
+    - to: [{ namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: kube-system } }, podSelector: { matchLabels: { k8s-app: kube-dns } } }]
+      ports: [{ port: 53, protocol: UDP }, { port: 53, protocol: TCP }]

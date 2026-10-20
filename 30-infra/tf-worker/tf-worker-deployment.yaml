@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: tf-worker, namespace: ssp-workers, labels: { app: tf-worker } }
+spec:
+  replicas: 2
+  selector: { matchLabels: { app: tf-worker } }
+  template:
+    metadata:
+      labels: { app: tf-worker }
+      annotations: { prometheus.io/scrape: "true", prometheus.io/port: "9090" }
+    spec:
+      serviceAccountName: tf-worker
+      securityContext: { runAsNonRoot: true, runAsUser: 65532, seccompProfile: { type: RuntimeDefault } }
+      containers:
+        - name: worker
+          image: REGION-docker.pkg.dev/CP_PROJECT/ssp/tf-worker:VERSION
+          args: ["--task-queue=tf-runs-default"]      # one Deployment per LOB queue in prod: --task-queue=tf-runs-<lob>
+          env:
+            - { name: TEMPORAL_ADDRESS, value: temporal-frontend.temporal.svc.cluster.local:7233 }
+            - { name: TEMPORAL_NAMESPACE, value: ssp }
+            - { name: RUNS_NAMESPACE, value: ssp-runs }
+            - { name: RUNNER_IMAGE, value: REGION-docker.pkg.dev/CP_PROJECT/ssp/tf-runner:VERSION }
+            - { name: RUNNER_KSA, value: tf-runner }
+            - { name: MAX_CONCURRENT_ACTIVITIES, value: "10" }
+            - { name: POLL_INTERVAL, value: "30s" }
+            - { name: JOB_TTL_SECONDS, value: "86400" }
+            - { name: JOB_ACTIVE_DEADLINE_SECONDS, value: "5400" }
+            - { name: OTEL_EXPORTER_OTLP_ENDPOINT, value: http://otel-collector.observability:4317 }
+          ports: [{ name: metrics, containerPort: 9090 }]
+          resources: { requests: { cpu: 100m, memory: 256Mi }, limits: { cpu: "1", memory: 1Gi } }
+          securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+          livenessProbe: { httpGet: { path: /healthz, port: 9090 }, periodSeconds: 20 }
+          readinessProbe: { httpGet: { path: /readyz, port: 9090 }, periodSeconds: 10 }

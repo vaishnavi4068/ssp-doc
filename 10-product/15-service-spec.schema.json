@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ssp/catalog/service-spec.schema.json",
+  "title": "SSP ServiceSpec v1",
+  "type": "object",
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "additionalProperties": false,
+  "properties": {
+    "apiVersion": { "const": "ssp.catalog/v1" },
+    "kind": { "const": "ServiceSpec" },
+    "metadata": {
+      "type": "object",
+      "required": ["id", "version", "displayName", "category", "cloud", "adr", "ownerMailbox"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "pattern": "^(gcp|aws|azure)\\.[a-z0-9-]+$" },
+        "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+        "displayName": { "type": "string", "maxLength": 60 },
+        "category": { "type": "string", "enum": ["database", "storage", "compute", "network", "messaging", "analytics", "security", "other"] },
+        "cloud": { "type": "string", "enum": ["gcp", "aws", "azure"] },
+        "adr": { "type": "string", "pattern": "^E-[A-Z0-9]+-\\d{4}$" },
+        "ownerMailbox": { "type": "string", "format": "email" },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "deprecated": { "type": "boolean", "default": false },
+        "successor": { "type": "string" }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "required": ["tenantBoundary", "resourceTypes", "request", "guardrails", "terraform", "pricing", "ui", "postBuild", "lifecycle"],
+      "additionalProperties": false,
+      "properties": {
+        "tenantBoundary": { "type": "string", "enum": ["project", "account", "subscription"] },
+        "resourceTypes": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+        "request": {
+          "type": "object", "required": ["schema", "nameField"], "additionalProperties": false,
+          "properties": { "schema": { "type": "string" }, "nameField": { "type": "string" } }
+        },
+        "context": {
+          "type": "object", "additionalProperties": false,
+          "properties": { "needs": { "type": "array", "items": { "type": "string" } } }
+        },
+        "derive": {
+          "type": "array",
+          "items": {
+            "type": "object", "required": ["field", "value"], "additionalProperties": false,
+            "properties": {
+              "field": { "type": "string", "pattern": "^/" },
+              "when": { "type": "string" },
+              "value": {},
+              "reason": { "type": "string" },
+              "requirementId": { "type": "string" }
+            }
+          }
+        },
+        "guardrails": {
+          "type": "array",
+          "items": {
+            "type": "object", "required": ["id", "field", "mode"], "additionalProperties": false,
+            "properties": {
+              "id": { "type": "string", "pattern": "^REQ-[A-Z]-[A-Z0-9]+-\\d{4}-\\d{2}$" },
+              "field": { "type": "string", "pattern": "^/" },
+              "mode": { "type": "string", "enum": ["inject", "deny", "warn"] },
+              "value": {},
+              "when": { "type": "string" },
+              "message": { "type": "string" },
+              "relaxable": { "type": "boolean", "default": false }
+            }
+          }
+        },
+        "terraform": {
+          "type": "object", "required": ["module", "source", "versionConstraint", "providers"], "additionalProperties": false,
+          "properties": {
+            "module": { "type": "string", "pattern": "^ssp-module-[a-z0-9-]+$" },
+            "source": { "type": "string" },
+            "versionConstraint": { "type": "string" },
+            "inputsFrom": { "type": "string", "default": "/" },
+            "outputs": { "type": "array", "items": { "type": "string" } },
+            "providers": { "type": "object", "additionalProperties": { "type": "string" } }
+          }
+        },
+        "secrets": {
+          "type": "array",
+          "items": {
+            "type": "object", "required": ["field", "mode", "path"], "additionalProperties": false,
+            "properties": {
+              "field": { "type": "string" },
+              "mode": { "type": "string", "enum": ["generate", "reference"] },
+              "path": { "type": "string", "pattern": "^secretmanager://" },
+              "rotationDays": { "type": "integer" }
+            }
+          }
+        },
+        "pricing": { "type": "string" },
+        "ui": { "type": "string" },
+        "postBuild": {
+          "type": "array",
+          "items": {
+            "type": "object", "required": ["step"],
+            "properties": {
+              "step": { "type": "string", "enum": ["cmdb.register", "backup.enroll", "monitoring.onboard", "notify.team", "dns.register", "firewall.request"] }
+            },
+            "additionalProperties": true
+          }
+        },
+        "lifecycle": {
+          "type": "object", "required": ["holdsData", "delete"], "additionalProperties": false,
+          "properties": {
+            "holdsData": { "type": "boolean" },
+            "ownerSignoff": { "type": "object", "properties": { "change": { "type": "boolean" }, "decommission": { "type": "boolean" } } },
+            "delete": {
+              "type": "object", "required": ["mode"],
+              "properties": { "mode": { "type": "string", "enum": ["soft", "hard"] }, "retentionDays": { "type": "integer", "minimum": 0 } }
+            },
+            "drift": {
+              "type": "object",
+              "properties": { "autoRevert": { "type": "boolean", "default": false }, "benignAttributes": { "type": "array", "items": { "type": "string" } } }
+            }
+          }
+        },
+        "sla": { "type": "object", "properties": { "provisionP95Minutes": { "type": "integer" } } },
+        "docs": { "type": "string" },
+        "publicIngress": { "type": "boolean", "default": false }
+      }
+    }
+  }
+}

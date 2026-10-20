@@ -1,0 +1,16 @@
+---
+description: ssp-ui / ssp-control-room / ssp-migrate rules (Next.js, shadcn, template-driven)
+globs: ["apps/**", "app/**", "packages/**", "components/**", "lib/**"]
+alwaysApply: false
+---
+
+# UI rules
+
+- Design reference is ssp-doc/10-product/16-ui-spec.md (prototype Gemini 4 Argon / shadcn-stack / #17). Use tokens from `@ssp/ui` only; no ad-hoc colors, radii or fonts.
+- Zero service-specific code: every service screen renders from `request.schema.json` + `ui.yaml` through `@ssp/form-renderer`; the `unknown-service` fixture must render.
+- Money, guardrails, policy results, ETA and code views come from server responses (`preflight`, `code`); the client computes nothing authoritative.
+- Place-order buttons exist only when a server `preview_hash` is present; on 409 refresh the receipt and ask again.
+- Data: TanStack Query hooks generated from the OpenAPI client; SSE via `EventSource` with `Last-Event-ID` resume; no global state library.
+- Accessibility: real form controls, visible focus, labelled inputs, keyboard-complete flows; Lighthouse a11y ≥ 95 in CI.
+- Tests: Vitest for components and renderer; Playwright e2e against the twin-backed sandbox; visual snapshots updated deliberately.
+- Shared components go to `packages/ui` (storefront repo) and are consumed by control room and migrate; never fork them.
