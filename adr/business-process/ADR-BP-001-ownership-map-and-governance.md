@@ -16,7 +16,7 @@ Codify the cross-functional stakeholder ownership map, ADR sign-off rules, CODEO
 
 In the design discussion (`uploads/design-digest.md`), Dwayne noted: "we have too many people who have a say… that's why nothing gets done," and the team agreed that every requirement must be documented in an ADR with a tracked owner (a shared team mailbox plus a named person), while Norm reiterated Allen's mandate: **"we cannot bypass operations."**
 
-Across the enterprise, specific integration domains and platform approvals are owned by named leads who must be engaged for interface contracts, credentials, and ADR sign-offs.
+Across the enterprise, specific integration domains and platform approvals are owned by named leads who must be engaged for interface contracts, credentials, and ADR sign-offs. In the non-prod `microdrive-dev` environment, the **SPP team** directly owns and provides the `spp-platform` runner GCP service account (`<runner-sa>@microdrive-dev.iam.gserviceaccount.com`, `TODO: vaishnavi4068`) and exposes `ssp-cp` directly via GKE Ingress / LoadBalancer on `md-dev`.
 
 ## Decision
 
@@ -27,12 +27,12 @@ Across the enterprise, specific integration domains and platform approvals are o
    | **Architect (Global Architecture & Factory Autonomy)** | **Manoj** (`@vaishnavi4068` / `@manoj-todo`) | `spp-architecture@tbd` | Global architecture, GCP host/service project model, data model, Factory Console `architect` role, CODEOWNERS lead |
    | **Core Approvers & Architecture/Ops Co-Leads** | **Dwayne**, **Norm** (`@dwayne-todo`, `@norm-todo`) | `spp-architecture@tbd` | Core PR/ADR approvers (`CODEOWNERS`), Factory Console `approver` role, dark factory & UI direction (Dwayne), Taxi parity & operations gate (Norm) |
    | **Lead Engineers / Code Owners** | **Norm**, **Manoj** | `spp-engineering@tbd` | Code ownership across `ssp-doc`, `ssp-cp`, `ssp-workers`, `ssp-ui`, and `ssp-module-<type>` |
+   | **Service Accounts in `microdrive-dev` (Non-Prod)** | **SPP Team** (`@vaishnavi4068`) | `spp-engineering@tbd` | Provides and owns the `spp-platform` runner GCP Service Account (`<runner-sa>@microdrive-dev.iam.gserviceaccount.com`, `TODO: vaishnavi4068`) and Workload Identity bindings in `microdrive-dev` |
+   | **Enterprise Clusters & Future Prod Service Accounts** | **Hurley** | `spp-cloud-iam@tbd` | Enterprise cluster issuance and future production environment/APM ID provisioning outside `microdrive-dev` |
    | **Operations & Database Governance** | **Allen** (Executive mandate), **Karen** (DBA/Ops requirements), **Norm** (Ops lead) | `spp-operations@tbd` | Non-bypassable Operations Gate (`ADR-GLB-007`), database operational rules, Jenkins DBA post-build criteria, persona permissions |
    | **Security & Compliance Baseline** | **Raju's team** (plus **Durant** on SA isolation) | `spp-security@tbd` | Security baseline rules injected in `Approved` state (`CMEK`, `>= 90`-day retention, public access prevention) so Raju's scanner never deletes SPP resources |
-   | **Service Accounts & GKE Clusters** | **Hurley** | `spp-cloud-iam@tbd` | Issues SPP platform service account ("kill button"), APM ID, GKE cluster (`md-dev`), and per-project service account provisioning |
    | **ServiceNow & CMDB** | **Ken O'Connor** (with **Stephanie** as CMDB contact) | `spp-itsm-cmdb@tbd` | ServiceNow request records (`REQ*`), production Change Requests (`CHG*`), incident linkage, and CMDB CI registration / non-VM CI class creation |
-   | **API Gateway (API Forge / AppGX / Apigee)** | **Kai** (transitioning from **Jim**) | `spp-apiforge@tbd` | Enterprise API Gateway onboarding and Phase 2 OAuth / OIDC ingress routing in GCP |
-   | **Networking, CIDR & Infoblox** | **John Simon** | `spp-network@tbd` | IP/CIDR range allocation and Infoblox integration for 2.0 projects |
+   | **Networking, CIDR & Infoblox** | **John Simon** | `spp-network@tbd` | IP/CIDR range allocation and Infoblox integration for 2.0 GCP projects |
    | **Executive Sponsor / Database Strategy** | **Saul** | `spp-leadership@tbd` | Executive sponsorship and database hosting direction |
 
 2. **ADR Ownership & Sign-Off Rule:**
@@ -63,12 +63,12 @@ Across the enterprise, specific integration domains and platform approvals are o
 
 ### Positive
 
-- Eliminates ambiguity over who owns external dependencies (ServiceNow/CMDB, SAs/clusters, API Forge, security rules, operations/DBA rules) and who signs off on ADRs.
-- Aligns `CODEOWNERS`, Factory Console RBAC (`manoj` as `architect`; `dwayne` and `norm` as `approver`), and ADR metadata.
+- Eliminates ambiguity over who owns external dependencies (ServiceNow/CMDB, SAs/clusters, security rules, operations/DBA rules) and who signs off on ADRs.
+- Aligns `CODEOWNERS`, Factory Console RBAC (`manoj` as `architect`; `dwayne` and `norm` as `approver`), and ADR metadata, with the SPP team directly owning `microdrive-dev` service accounts.
 
 ### Negative / Trade-offs
 
-- External integrations (ServiceNow API credentials from Ken O'Connor, CMDB non-VM CI classes, API Forge onboarding with Kai, Raju's full rule export) require coordination with external teams; mock/adapter interfaces in `ssp-cp` and `ssp-workers` are needed during early development in `microdrive-dev`.
+- External integrations (ServiceNow API credentials from Ken O'Connor, CMDB non-VM CI classes, Raju's full rule export) require coordination with external teams; mock/adapter interfaces in `ssp-cp` and `ssp-workers` are needed during early development in `microdrive-dev`.
 
 ## Acceptance Criteria
 
@@ -101,7 +101,7 @@ Across the enterprise, specific integration domains and platform approvals are o
 
 - [ ] **OQ-1 (GitHub Handles & Shared Mailboxes):** What are the exact GitHub handles for Manoj (`@manoj-todo`), Dwayne (`@dwayne-todo`), Norm (`@norm-todo`), and domain owners, and what are the active corporate distribution list addresses to replace `*@tbd`?
 - [ ] **OQ-2 (CMDB Non-VM CI Classes with Ken O'Connor & Stephanie):** Today's CMDB holds primarily VMs. What is the process and timeline with Ken O'Connor (and Stephanie) to define or onboard CMDB CI classes for PaaS/cloud resources such as GCS buckets (`cmdb_ci_cloud_storage_bucket`) and Cloud Spanner?
-- [ ] **OQ-3 (ServiceNow Non-Prod vs. Prod Flow):** In `dev` / `sandbox` environments (such as the first vertical slice in `microdrive-dev`), should `ssp-cp`/`ssp-workers` call a ServiceNow dev instance or a deterministic local ServiceNow/CMDB adapter while Ken O'Connor provisions API credentials?
+- [ ] **OQ-3 (ServiceNow Non-Prod vs. Prod Flow):** In `dev` / `sandbox` environments (such as the first vertical slice in non-prod `microdrive-dev`), should `ssp-cp`/`ssp-workers` call a ServiceNow dev instance or a deterministic local ServiceNow/CMDB adapter while Ken O'Connor provisions API credentials?
 - [ ] **OQ-4 (Cloud-to-CMDB Active Reconciliation):** Beyond the standard read-only CMDB polling agent, should `ssp-workers` actively push reconciliation updates from `Observed` state to CMDB?
 
 ## Related ADRs

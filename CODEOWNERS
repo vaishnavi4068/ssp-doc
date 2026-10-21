@@ -30,7 +30,6 @@
 /adr/endpoint-service/          @vaishnavi4068 @manoj-todo @dwayne-todo @norm-todo
 
 # Level 4: Per-Cloud ADRs (GCP Runtime & Target Architecture)
-# TODO: Add @hurley-todo (GCP SA/Cluster) and @kai-todo (API Forge/Apigee)
 /adr/per-cloud/                 @vaishnavi4068 @manoj-todo @dwayne-todo @norm-todo
 
 # Level 5: Automation ADRs (Terraform K8s Job Execution, Day-2 Ops, Software Factory Flow)
