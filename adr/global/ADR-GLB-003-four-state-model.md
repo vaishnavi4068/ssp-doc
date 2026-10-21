@@ -1,4 +1,4 @@
-# ADR-GLB-003: Four-State Provisioning Model and Storage Layout
+# ADR-GLB-003: Four-Gate Provisioning State Model and Storage Layout
 
 - **ADR ID:** ADR-GLB-003
 - **Level:** global
@@ -10,101 +10,159 @@
 
 ## Goal
 
-Define a uniform four-state lifecycle (`Requested`, `Approved`, `Expected`, `Observed`) and storage layout across centralized PostgreSQL and Google Cloud Storage (GCS) so that user requests remain simple and secret-free, mandatory guardrails are deterministically applied in `Approved` state, and deployed infrastructure state is isolated per GCP project without PostgreSQL write amplification or 5,000+ bucket sprawl.
+Define a uniform **four-gate provisioning state model** (`Requested` → `Approved` → `Expected` → `Observed`) and storage layout across centralized **AlloyDB for PostgreSQL** (`spp_platform`) and **Google Cloud Storage (`gs://microdrive-dev-spp-tfstate`)** so that user requests remain simple and secret-free, mandatory guardrails and approvals are deterministically recorded in `Approved` state with a verifiable hash chain, and deployed infrastructure state is isolated per GCP project (one state unit = one project = one state file) with short (`<= 2 KB`) non-sensitive projections in PostgreSQL for fast UI and drift queries.
 
 ## Context
 
-During the architecture design session (`uploads/design-digest.md`), the team evaluated how to represent resource lifecycle states and where to store Terraform state:
+From the architecture design session (`uploads/design-digest.md`) and the sanitized four-gate design package (`IDP four-gate data model: GCS bucket and Spanner`, see [`docs/source-provenance.md`](../../docs/source-provenance.md)):
 
-1. **Why Four States:**
-   - Developers want a fast, low-friction request experience without answering dozens of security and compliance questions ("there's so many options… I'm getting overloaded").
-   - Security ("Raju") currently runs automated compliance scanners that delete non-compliant cloud resources randomly. By separating `Requested` (raw user intent) from `Approved` ("where we sprinkle all our niceness on it": CMEK, `>= 90`-day retention, Raju security rules, naming, labels, APM tier defaults), SPP guarantees every resource is compliant before Terraform ever runs.
-   - Separating `Expected` (desired deployed state) from `Observed` (actual cloud state) enables drift detection when out-of-band changes occur.
-2. **Why PostgreSQL for `Requested`/`Approved` and GCS for `Expected`/`Observed`:**
-   - The team debated storing Terraform state in PostgreSQL, MongoDB Atlas, or cloud object storage.
-   - PostgreSQL was rejected for Terraform state due to write amplification, TOAST/vacuum churn on large state JSON blobs, and trust-boundary concerns (centralizing every secret from every project's Terraform state into one database). MongoDB Atlas had no native Terraform backend and an unverified security posture.
-   - The finalized decision stores `Requested` and `Approved` metadata in **centralized PostgreSQL in GCP (dedicated AlloyDB for PostgreSQL, `spp_platform` database, with zero secrets)**, and stores `Expected` and `Observed` Terraform states in **Google Cloud Storage (GCS)** with native GCS object locking (`ADR-GLB-004`).
-3. **Why One State File per Project in Two Folders (`expected/` and `observed/`):**
-   - Per-resource or per-category state files (e.g., separate network, IAM, and database states inside one project) were rejected because cross-state dependencies are brittle to manage.
-   - Creating 5,000+ individual state buckets (one bucket per project) was noted by Manoj as operationally difficult to manage at enterprise scale, leading to the **one bucket per Line of Business (LOB)** design (in each GCP LOB host project) with **two top-level folders (`expected/` and `observed/`)** and **one state file per GCP service project**. In the initial `microdrive-dev` runtime environment, the platform state bucket is `gs://microdrive-dev-spp-tfstate` (`ADR-AUT-001`).
+1. **Why Four Gates (`Requested -> Approved -> Expected -> Observed`):**
+   - Developers want a fast, low-friction request experience without answering dozens of security and compliance questions.
+   - Security ("Raju") runs automated compliance scanners that delete non-compliant cloud resources. By separating `Requested` (raw user intent) from `Approved` (where mandatory guardrails are enforced and recorded in `guardrail_trace`: CMEK in `us-east1`, retention floors, uniform bucket-level access, public access prevention, deletion protection, mandatory labels, prerequisites, and post-apply tasks), SPP guarantees every resource is compliant before Terraform runs.
+   - Separating `Expected` (composed project-level Terraform inputs from every active approval) from `Observed` (Terraform state after apply or refresh scan plus a `<= 2 KB` projection and drift findings) enables deterministic drift detection (`Expected != Observed`).
+2. **Storage Placement Across AlloyDB for PostgreSQL and GCS:**
+   - **AlloyDB for PostgreSQL (`spp_platform` in `microdrive-dev`, `us-east1`):** Stores `Requested` (`submission`, `request`, `policy_evaluation`) and `Approved` (`approval`, `approval_decision`) documents **in full**, with **zero secret values, ever**. For `Expected` and `Observed`, PostgreSQL stores **only** pointers (`artifact_uri`, `plan_uri`, `state_uri`, `snapshot_uri`), object generations, state serials/lineages, canonical JSON SHA-256 hashes, a **small per-resource Observed projection (`<= 2 KB` / `< 2000` bytes)**, and `drift_finding` rows.
+   - **Why `<= 2 KB` Projections in Postgres Are Allowed (and Full `.tfstate` Is Rejected):** Storing full Terraform `.tfstate`, `plan.json`, or `terraform.tfvars.json` blobs in PostgreSQL was rejected due to write amplification, TOAST/vacuum churn, and trust-boundary risks (`terraform show -json` contains clear-text sensitive values flagged under `sensitive_values`). Keeping `resource_observed.projection` under `2 KB` (`CHECK (octet_length(projection::text) < 2000)` with `fillfactor = 80`) keeps rows below PostgreSQL's TOAST threshold, strips all attributes flagged under `sensitive_values`, and upserts **only when `projection_sha256` changes** (`WHERE ro.projection_sha256 IS DISTINCT FROM EXCLUDED.projection_sha256`), so ~5,000 daily project scans write only one narrow `observation` row per project scan without dead-tuple churn.
+3. **Single State Bucket (`gs://microdrive-dev-spp-tfstate`) and Per-Project State Unit Layout:**
+   - Rather than creating per-LOB buckets or 5,000+ per-project buckets now, SPP uses the **single state bucket `gs://microdrive-dev-spp-tfstate`** in `us-east1` (CMEK-encrypted, object versioning enabled; no per-LOB buckets for now).
+   - Within `gs://microdrive-dev-spp-tfstate`, **one state unit = one GCP project = one Terraform state file** under `projects/<project_id>/` (alongside the legacy/flat `expected/<project_id>/` and `observed/<project_id>/` paths during transition).
 
 ## Decision
 
-1. **Four Canonical States:**
-   - **`Requested` (PostgreSQL):** The user's or API caller's raw request metadata. Written synchronously by `ssp-cp` directly to centralized PostgreSQL in GCP. Does **not** go through Temporal on write, and contains **zero secrets**.
-   - **`Approved` (PostgreSQL):** The immutable, policy-enriched specification produced by `ssp-cp` after injecting mandatory guardrails (CMEK key reference, `retention_days >= 90`, `public_access_prevention = "enforced"`, Raju security baseline flags, APM ID tier defaults, standard resource naming, mandatory labels, and `operations_gate` approval, plus non-blocking post-MVP interface placeholder fields for ServiceNow/CMDB) and passing OPA validation. Contains **zero secrets**.
-   - **`Expected` (GCS):** The desired deployed Terraform state written by the Kubernetes Job runner after `terraform apply`. May contain secrets injected post-approval during execution. Stored at `expected/<project-id>/terraform.tfstate`.
-   - **`Observed` (GCS):** The actual cloud state captured by an independent scheduled (and post-apply) capture job that reads actual resource configuration directly from **GCP APIs keyed by immutable CSP resource ID (`cloud_resource_id`)** and writes to `observed/<project-id>/terraform.tfstate` for comparison against `Expected` (explicitly **not** `terraform plan -refresh-only`; on drift, the MVP is **alert-only** with no auto-remediation, per `ADR-AUT-002`).
-2. **State Granularity, Root Module Rendering & Bucket Placement:**
-   - **One state file per 2.0 GCP project** (never per-resource or per-category): `ssp-workers` renders **one composite root module per project** combining all approved resource instances for that project before launching the runner Job.
-   - **Two folders per state bucket:** `expected/<project-id>/terraform.tfstate` and `observed/<project-id>/terraform.tfstate`.
-   - **Bucket topology:** For the MVP in `microdrive-dev`, Terraform state is stored in `gs://microdrive-dev-spp-tfstate`. At enterprise scale across LOBs, state is stored in **one GCS bucket per LOB host project**.
-   - **Post-Approval Secret Injection:** When a resource requires secrets injected after `Approved` state into `Expected`, secrets are fetched from **GCP Secret Manager**.
+### 1. The Four Gates Matrix
+
+| Gate | What It Holds | System of Record | Written By | Mutability |
+| :--- | :--- | :--- | :--- | :--- |
+| **Gate 1: `Requested`** (`REQUESTED`) | Business payload verbatim (`submission.raw_payload`), plus one canonical `requested_spec` JSON document per resource (`{api_version: "idp.spp/v1", kind, action, metadata, spec}`) | AlloyDB PostgreSQL: `idp.submission`, `idp.request`, `idp.policy_evaluation` (`stage = 'requested'`) | Intake API (`ui`, `api`, `chat`, `import`, or deferred `legacy_shim`) | **Immutable** (`request_guard` trigger); any change requires a new `request` row |
+| **Gate 2: `Approved`** (`APPROVED`) | Canonical requested document **plus** enforced guardrails (`approved_spec`), `guardrail_trace` (`[{rule_id, path, from, to, reason}]`), human approval decisions, and materialized `pre_apply`/`post_apply` `lifecycle_task` rows | AlloyDB PostgreSQL: `idp.approval`, `idp.approval_decision`, `idp.policy_evaluation` (`stage = 'approved'`), `idp.lifecycle_task` | `RequestWorkflow` (`req-<request_id>`), `ApprovalGateWorkflow` (`apr-<request_id>`), OPA | **Immutable once decided** (`approval_guard` trigger); decided approvals may only transition `APPROVED`/`AUTO_APPROVED` → `REVOKED`/`EXPIRED` |
+| **Gate 3: `Expected`** (`EXPECTED`) | Complete project-level Terraform inputs (`terraform.tfvars.json`), `manifest.json` (Terraform/provider/module pins, members with `approved_spec_sha256`, secret references only), and `plan.json` (`terraform show -json <planfile>`) composed from every active approval in the state unit | **GCS (`gs://microdrive-dev-spp-tfstate`):** `projects/<project_id>/expected/rev-NNNNNN/{terraform.tfvars.json, manifest.json, plan.json}`; **AlloyDB pointers:** `idp.expected_revision`, `idp.expected_revision_member`, `idp.tf_operation`, `idp.policy_evaluation` (`stage = 'plan'`) | Project reconciler (`StateUnitReconcilerWorkflow` `su-gcp-<project_id>`) | **Immutable per revision** (`ifGenerationMatch=0` create-only GCS write + `expected_revision_guard` trigger) |
+| **Gate 4: `Observed`** (`OBSERVED`) | Terraform state after apply (`default.tfstate`) or refresh-only drift scan (`observed/scan-<window>/plan.json`), plus small non-sensitive per-resource projection (`<= 2 KB`) and per-attribute drift findings | **GCS (`gs://microdrive-dev-spp-tfstate`):** `projects/<project_id>/default.tfstate` and `projects/<project_id>/observed/scan-<window>/plan.json`; **AlloyDB pointers & projections:** `idp.observation`, `idp.resource_observed` (`< 2000` bytes), `idp.drift_finding` | Terraform runner K8s Jobs (`spp-platform`), scheduled drift scans (`drift-<project_id>`) | State versioned in GCS; `resource_observed` upserted **only when `projection_sha256` changes** |
+
+### 2. GCS State Bucket Layout (`gs://microdrive-dev-spp-tfstate`)
+
+All state units use the single state bucket **`gs://microdrive-dev-spp-tfstate`** in `us-east1` (no per-LOB state buckets):
+
+```text
+gs://microdrive-dev-spp-tfstate/                       # Single SPP state bucket in us-east1 (CMEK, versioning on)
+  projects/<project_id>/                               # One state unit = one GCP project = one state file
+    default.tfstate                                    # OBSERVED: Terraform GCS backend state
+    default.tflock                                     # Native GCS lock, present only while a run holds it
+    expected/
+      rev-000002/
+        terraform.tfvars.json                          # EXPECTED inputs (secret references only, never values)
+        manifest.json                                  # Terraform/provider/module pins, members, approval hashes
+        plan.json                                      # terraform show -json <planfile>
+    observed/
+      scan-2026-10-23T06/
+        plan.json                                      # Refresh-only plan output from a scheduled drift scan
+    logs/
+      tf-plan-<20hex>.log                              # Runner Job execution logs
+```
+
+```hcl
+terraform {
+  backend "gcs" {
+    bucket = "microdrive-dev-spp-tfstate"
+    prefix = "projects/<project_id>"
+  }
+}
+
+provider "google" {
+  impersonate_service_account = var.state_unit.executor_identity # Per-project SA, reached from central platform SA
+}
+```
+
+### 3. Secret Handling Across the Four Gates
+
+Secrets enter **only at the `Expected` gate** and never appear in PostgreSQL:
+1. An `approved_spec` document may name a **secret slot** (never a secret value).
+2. The `Expected` revision `manifest.json` binds the slot to a **GCP Secret Manager reference**.
+3. The Kubernetes Job runner resolves the Secret Manager reference into `TF_VAR_*` in memory at execution time. (`gcs_bucket`, `spanner_instance`, and `spanner_database` authenticate via IAM and leave secret slots empty.)
+4. Workers inspect state via `terraform show -json` rather than parsing raw `.tfstate`; any value flagged under `sensitive_values` stays in `gs://microdrive-dev-spp-tfstate` (same trust boundary) and is stripped before computing `resource_observed.projection`.
+
+### 4. Canonical JSON Hashing & Hash Chain (`Requested -> Approved -> Expected -> Observed`)
+
+Every gate document and projection is hashed using **SHA-256 over canonical JSON** (sorted keys, compact separators `(",", ":")`, UTF-8, no floats):
+
+```python
+import hashlib
+import json
+
+def canonical_sha256(doc: dict) -> str:
+    return hashlib.sha256(
+        json.dumps(doc, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    ).hexdigest()
+```
+
+- `submission.raw_payload_sha256` → `request.requested_spec_sha256` → `approval.approved_spec_sha256` → `expected_revision.artifact_sha256` (with each member's `approved_spec_sha256` verified against `idp.approval.approved_spec_sha256` before `plan`, per `INV-6`) → `resource_observed.projection_sha256`.
 
 ## Requirements
 
-- **REQ-1 (MUST):** Every resource managed by SPP MUST progress through the four states (`Requested -> Approved -> Expected -> Observed`) in strict order.
-- **REQ-2 (MUST):** `Requested` and `Approved` states MUST be stored in centralized PostgreSQL in GCP and MUST NOT contain any secrets, passwords, private keys, API keys, or tokens.
-- **REQ-3 (MUST):** Persisting a `Requested` record MUST be a synchronous database write in `ssp-cp` and MUST NOT depend on Temporal availability.
-- **REQ-4 (MUST):** `Expected` and `Observed` states MUST be stored in GCS (`gs://microdrive-dev-spp-tfstate` in `microdrive-dev`, and per-LOB buckets `gs://<lob-state-bucket>` at scale) under `expected/<project-id>/terraform.tfstate` and `observed/<project-id>/terraform.tfstate`.
-- **REQ-5 (MUST NOT):** The platform MUST NOT store `Expected` or `Observed` Terraform state files in PostgreSQL or MongoDB, and MUST NOT split a single 2.0 GCP project across per-resource or per-category state files.
+- **REQ-1 (MUST):** Every resource managed by SPP MUST progress through the four gates (`REQUESTED -> APPROVED -> EXPECTED -> OBSERVED`), tracked on `idp.resource.gate` (`REQUESTED | APPROVED | EXPECTED | OBSERVED`) and `idp.resource.sync_status` (`PENDING | IN_SYNC | DRIFTED | FAILED | UNKNOWN`).
+- **REQ-2 (MUST):** `Requested` (`idp.submission`, `idp.request`) and `Approved` (`idp.approval`, `idp.approval_decision`) documents MUST be stored in full in centralized **AlloyDB for PostgreSQL** (`spp_platform`) and MUST NOT contain any secret values (`INV-1`).
+- **REQ-3 (MUST):** `Expected` (`terraform.tfvars.json`, `manifest.json`, `plan.json`) and `Observed` (`default.tfstate`, refresh scan `plan.json`) artifacts MUST be stored in the single GCS bucket **`gs://microdrive-dev-spp-tfstate`** in `us-east1` under `projects/<project_id>/` (one state unit = one GCP project = one state file); full `.tfstate`, `plan.json`, or `terraform.tfvars.json` blobs MUST NOT be stored in AlloyDB.
+- **REQ-4 (MUST):** Every `Expected` revision artifact (`projects/<project_id>/expected/rev-NNNNNN/terraform.tfvars.json`) MUST be written to GCS with `ifGenerationMatch=0` (create-only) and recorded in `idp.expected_revision` with its GCS `artifact_generation` and canonical `artifact_sha256` (`INV-5`).
+- **REQ-5 (MUST):** Before running `terraform plan`, the reconciler MUST verify that every member's `approved_spec_sha256` in `manifest.json` equals `idp.approval.approved_spec_sha256` in AlloyDB (`INV-6`); on mismatch, the revision MUST be marked blocked (`blocked_reason = 'approved_hash_mismatch'`).
+- **REQ-6 (MUST):** `idp.resource_observed.projection` in AlloyDB MUST strip all attributes flagged under `sensitive_values`, MUST be `< 2000` bytes (`CHECK (octet_length(projection::text) < 2000)`), and MUST be upserted only when `projection_sha256` changes.
+- **REQ-7 (MUST):** Every guardrail mutation applied at the `Approved` gate MUST be explicitly written into `approved_spec` and recorded in `approval.guardrail_trace` (`[{rule_id, path, from, to, reason}]`).
 
 ## Guardrails
 
-- **GR-1:** Zero secrets in `Requested` or `Approved` PostgreSQL records; any payload with secret keys or credential patterns must be rejected by the JSON Schema and OPA gate.
-- **GR-2:** Never transition a request to `Expected` (Terraform execution) unless it has reached `Approved` state with all security and operations gates satisfied.
-- **GR-3:** Never use per-category or per-resource Terraform state files within a 2.0 GCP project.
+- **GR-1 (`INV-1`):** Zero secrets in `Requested` or `Approved` AlloyDB records, and zero sensitive values in `resource_observed.projection`.
+- **GR-2 (`INV-5` & `INV-6`):** Never apply an unverified plan or allow in-place edits of rendered `Expected` revision artifacts in GCS (`ifGenerationMatch=0` create-only + SHA-256 hash verification).
+- **GR-3 (`INV-8`):** Never split a single 2.0 GCP project across multiple state files, and never create per-LOB state buckets; use `gs://microdrive-dev-spp-tfstate` with one state unit per project.
+- **GR-4:** Never store `Expected` or `Observed` `.tfstate` or `plan.json` blobs in AlloyDB; only pointers, hashes, `plan_summary` counts (`{add, change, destroy, replace}`), `<= 2 KB` projections, and `drift_finding` rows are permitted in AlloyDB.
 
 ## Consequences
 
 ### Positive
 
-- Centralized PostgreSQL remains fast, queryable, and completely free of cloud secrets and Terraform state bloat.
-- Every resource within a 2.0 GCP project shares one state file (`expected/<project-id>/terraform.tfstate`), allowing clean intra-project references (IAM, VPC, storage, compute) without fragile cross-state outputs.
-- Two-folder layout (`expected/` and `observed/`) cleanly supports drift detection without mutating the `Expected` baseline during out-of-band observation scans.
+- AlloyDB remains fast, queryable, and free of cloud secrets and TOAST churn: UI views (`idp.v_resource_status`) and drift dashboards can query resource status and `<= 2 KB` projections across 5,000+ projects without reading GCS `.tfstate` files.
+- `guardrail_trace` makes every injected policy decision transparent and auditable ("why is retention 90 days on my bucket?").
+- Create-only GCS artifact writes (`ifGenerationMatch=0`) and the canonical SHA-256 hash chain guarantee that what was approved in AlloyDB is what gets planned and applied in GCS.
 
 ### Negative / Trade-offs
 
-- Because each 2.0 project has a single Terraform state file, concurrent runs targeting the same project must be serialized (via GCS native object locking and Temporal per-project workflow serialization) so two runs do not collide.
-- `Expected` and `Observed` state files in GCS may contain provider-generated sensitive attributes, requiring strict IAM and CMEK encryption on the state bucket.
+- Because each 2.0 GCP project is a single state unit (`default.tfstate`), concurrent operations targeting the same project are serialized by `StateUnitReconcilerWorkflow` (`su-gcp-<project_id>`) and GCS native lock (`default.tflock`).
 
 ## Acceptance Criteria
 
-- [ ] `ssp-cp` persists `Requested` and `Approved` records in PostgreSQL and validates both against the canonical JSON Schema and Rego secret-scanning rules.
-- [ ] `ssp-workers` configures the Terraform GCS backend for `Expected` state at `gs://microdrive-dev-spp-tfstate/expected/<project-id>/terraform.tfstate` and runs an independent GCP API capture job (keyed by `cloud_resource_id`) to write `Observed` state at `gs://microdrive-dev-spp-tfstate/observed/<project-id>/terraform.tfstate`.
-- [ ] OPA policy rules enforce `state_backend.expected_key == "expected/<project_id>/terraform.tfstate"` and `state_backend.observed_key == "observed/<project_id>/terraform.tfstate"`.
+- [ ] `specs/data-model/spp_state_model.sql` defines the four-gate tables, `resource_observed_projection_small` (`< 2000` bytes) constraint, and immutability triggers (`request_guard`, `approval_guard`, `expected_revision_guard`, `gate_event_guard`).
+- [ ] `ssp-cp` and `ssp-workers` implement canonical JSON SHA-256 hashing (`canonical_sha256`) and verify `approved_spec_sha256` before planning (`INV-6`).
+- [ ] All state units point to `gs://microdrive-dev-spp-tfstate` with prefix `projects/<project_id>`.
 
 ## Success Criteria
 
 - **SC-1:**
-  - **Given** a developer submitting a valid GCS bucket request via `POST /api/v1/requests`
-  - **When** `ssp-cp` processes the request
-  - **Then** a `Requested` row is written synchronously to PostgreSQL with zero secrets and without calling Temporal, followed by `Approved` enrichment with CMEK, `>= 90`-day retention, and required labels.
+  - **Given** a `Requested` document submitted to `ssp-cp`
+  - **When** it advances to `Approved` and is composed into an `Expected` revision (`rev-000002`)
+  - **Then** `submission` and `request` are immutable in AlloyDB, `approval` records `approved_spec`, `approved_spec_sha256`, and `guardrail_trace`, and `expected/rev-000002/terraform.tfvars.json` is written to `gs://microdrive-dev-spp-tfstate` with `ifGenerationMatch=0` and matching `approved_spec_sha256` hashes.
 - **SC-2:**
-  - **Given** an `Approved` request for `project_id = "microdrive-dev"`
-  - **When** the Kubernetes Job runner executes Terraform in `spp-platform`
-  - **Then** `Expected` state is persisted to `gs://microdrive-dev-spp-tfstate/expected/microdrive-dev/terraform.tfstate` and `Observed` state is persisted to `gs://microdrive-dev-spp-tfstate/observed/microdrive-dev/terraform.tfstate`.
+  - **Given** a completed `apply` or `refresh_plan` on a state unit
+  - **When** `ssp-workers` records the observation in AlloyDB
+  - **Then** `idp.observation` stores only the GCS URI (`gs://microdrive-dev-spp-tfstate/projects/<project_id>/default.tfstate`), generation, and serial, while `idp.resource_observed` stores a non-sensitive JSON projection `< 2000` bytes and skips the `UPDATE` if `projection_sha256` is unchanged.
 
 ## Affected Repos
 
 | Repository | Impact Summary |
 | :--- | :--- |
-| `ssp-doc` | Defines the 4-state contract and GCS storage layout |
-| `ssp-cp` | Implements `Requested` and `Approved` PostgreSQL persistence and guardrail enrichment |
-| `ssp-workers` | Orchestrates `Approved -> Expected -> Observed` transitions and GCS state backend paths |
-| `ssp-ui` | Displays the 4 lifecycle states (`Requested`, `Approved`, `Expected`, `Observed`) in order tracking |
-| `ssp-module-<type>` | Outputs immutable GCP resource IDs and composes into the per-project state file |
-| `spp-factory-foundation` | Enforces 4-state schema and Rego rules in `gates/` |
+| `ssp-doc` | Defines the four-gate state model, hash chain, `<= 2 KB` projection rule, and `gs://microdrive-dev-spp-tfstate` layout |
+| `ssp-cp` | Persists `Requested` and `Approved` gate rows, computes `canonical_sha256`, records `guardrail_trace`, and exposes `idp.v_resource_status` |
+| `ssp-workers` | Renders create-only `Expected` revisions (`ifGenerationMatch=0`) in `gs://microdrive-dev-spp-tfstate`, runs K8s Jobs, and writes `<= 2 KB` `Observed` projections |
+| `ssp-ui` | Queries `idp.v_resource_status`, `guardrail_trace`, and `resource_observed.projection` without fetching GCS state files |
+| `ssp-module-<type>` | Consumes `tfvars_collection` entries from `terraform.tfvars.json` and outputs `cloud_resource_id` |
+| `spp-factory-foundation` | Validates canonical JSON schemas, hash-chain invariants (`INV-1..INV-9`), and projection size constraints |
 
 ## Open Questions
 
-- [x] **OQ-1 (`gs://microdrive-dev-spp-tfstate` vs. Per-LOB Buckets — RESOLVED 2026-10-21):** *Resolved:* Use `gs://microdrive-dev-spp-tfstate` for the `microdrive-dev` MVP; per-LOB bucket naming for production host projects is deferred post-MVP (Owner: Manoj).
-- [x] **OQ-2 (Root Module Composition per Project — RESOLVED 2026-10-21):** *Resolved:* `ssp-workers` renders **one composite Terraform root module per project** from the project's approved resource instances before launching `tf-op-<operation_id>`.
-- [x] **OQ-3 (Post-Approval Secret Injection Source — RESOLVED 2026-10-21):** *Resolved:* Post-approval secrets injected into `Expected` state are fetched from **GCP Secret Manager**.
+- [x] **OQ-1 (Single State Bucket vs. Per-LOB Buckets — OVERRIDDEN BY USER DECISION 2026-10-21):** *Resolved:* Use a **single state bucket `gs://microdrive-dev-spp-tfstate`** in `us-east1` for now (no per-LOB state buckets).
+- [x] **OQ-2 (Short Observed-State & Drift Summaries in PostgreSQL — OVERRIDDEN BY USER DECISION 2026-10-21):** *Resolved:* Short non-sensitive observed-state projections (`<= 2 KB` / `< 2000` bytes in `idp.resource_observed`) and `idp.drift_finding` rows in AlloyDB for PostgreSQL are explicitly allowed; full `Expected`/`Observed` state files stay in GCS.
+- [ ] **OQ-3 (Unverified Source Gaps in Schemas & Examples — SOURCE GAP [Owner: Manoj]):** **Unverified (source gap):** In the source design package, `schemas/idp-common.schema.json`, `schemas/gcs_bucket.schema.json`, `schemas/spanner.schema.json`, `schemas/project-expected.schema.json`, `examples/gcs_bucket.gates.json`, `examples/expected/rev-000002/{manifest.json,terraform.tfvars.json}`, and `tools/validate_examples.py` (49 stdlib checks) were listed in the package file tree (photo 6548) but were `[NOT CAPTURED]` in the photographs. Must be authored/verified in `ssp-cp` and `spp-factory-foundation`.
 
 ## Related ADRs
 
 - [ADR-GLB-001: Global Architecture Overview](ADR-GLB-001-global-architecture-overview.md)
-- [ADR-GLB-004: Data Model and Database](ADR-GLB-004-data-model-and-database.md)
-- [ADR-AUT-001: Terraform Execution via Kubernetes Jobs](../automation/ADR-AUT-001-terraform-execution-k8s-job.md)
+- [ADR-GLB-004: Data Model and Centralized PostgreSQL Database (AlloyDB for PostgreSQL)](ADR-GLB-004-data-model-and-database.md)
+- [ADR-GLB-007: Governance Gates and Policy (Rego)](ADR-GLB-007-governance-gates-and-policy-rego.md)
+- [ADR-AUT-001: Terraform Execution via Deterministic Kubernetes Jobs](../automation/ADR-AUT-001-terraform-execution-k8s-job.md)
 - [ADR-AUT-002: Day-2 Operations Scope](../automation/ADR-AUT-002-day-2-operations-scope.md)
