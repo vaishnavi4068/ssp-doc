@@ -1,0 +1,37 @@
+# =============================================================================
+# SPP Architecture Decision Records (ssp-doc) — CODEOWNERS
+# =============================================================================
+# Governance Model:
+#   - Architect: Manoj (owns global architecture, ADR taxonomy, and autonomy gates)
+#   - Approvers: Dwayne, Norm (core architecture & operations sign-off)
+#
+# TODO: Replace placeholder GitHub handles (@manoj-todo, @dwayne-todo, @norm-todo,
+#       and domain stakeholder handles) with verified enterprise GitHub usernames
+#       or organization team slugs once provisioned.
+# =============================================================================
+
+# Default owners for all repository files (Architect + Core Approvers)
+*                               @vaishnavi4068 @manoj-todo @dwayne-todo @norm-todo
+
+# ADR Template, Index, and Repository Map
+/templates/                     @vaishnavi4068 @manoj-todo @dwayne-todo @norm-todo
+/docs/                          @vaishnavi4068 @manoj-todo @dwayne-todo @norm-todo
+/adr/INDEX.md                   @vaishnavi4068 @manoj-todo @dwayne-todo @norm-todo
+/adr/OWNERSHIP_MATRIX.md        @vaishnavi4068 @manoj-todo @dwayne-todo @norm-todo
+
+# Level 1: Global ADRs (Architecture, Languages, State, Data Model, Identity, Naming, Rego Gates)
+/adr/global/                    @vaishnavi4068 @manoj-todo @dwayne-todo @norm-todo
+
+# Level 2: Business Process ADRs (Ownership Map, ITSM/CMDB, APM Tiering, Build Order)
+# TODO: Add @ken-oconnor-todo (ServiceNow/CMDB) and @karen-todo / @allen-todo (Operations)
+/adr/business-process/          @vaishnavi4068 @manoj-todo @dwayne-todo @norm-todo
+
+# Level 3: Endpoint / Service ADRs (First Vertical Slice: GCS Bucket, etc.)
+/adr/endpoint-service/          @vaishnavi4068 @manoj-todo @dwayne-todo @norm-todo
+
+# Level 4: Per-Cloud ADRs (GCP Runtime & Target, AWS Target, Azure Target)
+# TODO: Add @hurley-todo (GCP SA/Cluster) and @kai-todo (API Forge/Apigee)
+/adr/per-cloud/                 @vaishnavi4068 @manoj-todo @dwayne-todo @norm-todo
+
+# Level 5: Automation ADRs (Terraform K8s Job Execution, Day-2 Ops, Software Factory Flow)
+/adr/automation/                @vaishnavi4068 @manoj-todo @dwayne-todo @norm-todo
