@@ -10,7 +10,7 @@
 
 ## Goal
 
-Define the strict, dependency-ordered delivery sequence for building the Self-Service Provisioning Platform (SPP) through the AI Software Factory (`spp-factory-foundation`), starting from prerequisite ADRs and a headless control-plane skeleton, proving the **GCS bucket vertical slice end-to-end with no UI**, adding **GCS Day-2 operations**, and only then building the **portal UI + chat** and expanding to additional resource types.
+Define the strict, dependency-ordered delivery sequence for building the Self-Service Provisioning Platform (SPP) through the AI Software Factory (`spp-factory-foundation`), starting from prerequisite ADRs and a headless control-plane skeleton, proving the **GCS bucket vertical slice end-to-end with no UI**, adding **GCS Day-2 operations**, and only then building the **portal UI + chat** and expanding to additional GCP resource types.
 
 ## Context
 
@@ -21,7 +21,7 @@ To avoid building an ungrounded UI or attempting to support dozens of cloud serv
 3. **Phase 3:** First Vertical Slice — GCS Bucket End-to-End with **No UI** (`ADR-SVC-001`)
 4. **Phase 4:** GCS Bucket Day-2 Operations (`ADR-AUT-002`)
 5. **Phase 5:** Portal UI & Embedded Chat (`ssp-ui`)
-6. **Phase 6:** Additional Resource Types (`ssp-module-spanner`, VM, Cloud SQL/Postgres, BigQuery dataset) and Multi-Cloud Targets (AWS, Azure)
+6. **Phase 6:** Additional GCP Resource Types (`ssp-module-spanner`, VM, Cloud SQL/Postgres, BigQuery dataset)
 
 ## Decision
 
@@ -29,12 +29,12 @@ The AI Software Factory (`spp-factory-foundation`) and engineering team MUST exe
 
 | Phase | Name | Target Repos | Scope & Deliverables | Exit Gate |
 | :--- | :--- | :--- | :--- | :--- |
-| **Phase 1** | **Global, Architecture & Data-Model ADRs** | `ssp-doc`, `ssp-cp` | Draft and review prerequisite ADRs in `ssp-doc` (`adr/global/`, `adr/business-process/`, `adr/endpoint-service/`, `adr/per-cloud/`, `adr/automation/`) and component/service ADRs in `ssp-cp` (API, DB migrations, GCS, Spanner, VM). | ADRs pass `lint_adrs.py` and receive human owner sign-off (`Accepted`). |
-| **Phase 2** | **Control-Plane & Worker Skeleton** | `ssp-cp`, `ssp-workers` | Build Python FastAPI skeleton + local Argon2id auth + Alembic PostgreSQL migrations (`Requested`/`Approved` tables) + OPA policy evaluator in `ssp-cp`; build Python Temporal worker (`platform` namespace on `temporal-frontend.spp-temporal.svc.cluster.local:7233`) + deterministic K8s Job launcher (`tf-op-<operation_id>` in `spp-platform`) in `ssp-workers`. | Health checks, DB migrations, auth flow,OPA evaluation, and dry-run K8s Job launch pass in `spp-platform` on `md-dev`. |
+| **Phase 1** | **Global, Architecture & Data-Model ADRs** | `ssp-doc`, `ssp-cp` | Draft and review prerequisite ADRs in `ssp-doc` (`adr/global/`, `adr/business-process/`, `adr/endpoint-service/`, `adr/per-cloud/gcp/`, `adr/automation/`) and component/service ADRs in `ssp-cp` (API, DB migrations, GCS, Spanner, VM). | ADRs pass `lint_adrs.py` and receive human owner sign-off (`Accepted`). |
+| **Phase 2** | **Control-Plane & Worker Skeleton** | `ssp-cp`, `ssp-workers` | Build Python FastAPI skeleton + local Argon2id auth + Alembic PostgreSQL migrations (`Requested`/`Approved` tables) + OPA policy evaluator in `ssp-cp`; build Python Temporal worker (`platform` namespace on `temporal-frontend.spp-temporal.svc.cluster.local:7233`) + deterministic K8s Job launcher (`tf-op-<operation_id>` in `spp-platform`) in `ssp-workers`. | Health checks, DB migrations, auth flow, OPA evaluation, and dry-run K8s Job launch pass in `spp-platform` on `md-dev`. |
 | **Phase 3** | **First Vertical Slice: GCS Bucket End-to-End (No UI)** | `ssp-module-gcs` (or `templates/resource-repo`), `ssp-cp`, `ssp-workers` | Headless API-driven provisioning of a compliant 2.0 GCS bucket (`google_storage_bucket`) through all 4 states (`Requested -> Approved -> Expected -> Observed`) with CMEK, `>= 90`-day retention, uniform bucket-level access, `public_access_prevention = "enforced"`, Raju baseline, and state stored in `gs://microdrive-dev-spp-tfstate`. **Zero UI work in this phase.** | Live GCS bucket provisioned via API on `microdrive-dev` with `Expected` and `Observed` state verified in `gs://microdrive-dev-spp-tfstate`. |
 | **Phase 4** | **GCS Bucket Day-2 Operations** | `ssp-cp`, `ssp-workers`, `ssp-module-gcs` | Implement and verify Day-2 workflows for GCS buckets: **update** (labels/lifecycle), **resize/tier change** (storage class), **upgrade** (module version bump), **drift detection** (`Expected` vs. `Observed` by CSP resource ID), **rollback** (prior `Approved` spec), **decommission** (controlled delete with operations gate), and **cost** attribution. | All 7 Day-2 operations pass integration tests against the GCS vertical slice. |
-| **Phase 5** | **Self-Service Portal UI & Chat** | `ssp-ui`, `ssp-cp` | Build the React storefront (`ssp-ui`) with top-center search, frequent catalog, bottom-right conversational chat, template-driven form rendering (no redeploy per service), equivalent Terraform/CLI code preview, and SSO integration. | User can request and track a GCS bucket and Day-2 actions from `ssp-ui` and chat. |
-| **Phase 6** | **More Resource Types & Multi-Cloud** | `ssp-module-spanner`, `ssp-module-vm`, `ssp-module-postgres`, `ssp-cp`, `ssp-workers` | Onboard additional GCP services (Spanner in existing `ssp-module-spanner`, GCE VMs with post-build Temporal workflows, relational DBs, BigQuery datasets) and expand to AWS (`ADR-CLD-AWS-001`) and Azure (`ADR-CLD-AZR-001`) 2.0 targets. | Each new `ssp-module-<type>` passes the 7-stage factory gate and registers in the catalog without redeploying `ssp-ui`. |
+| **Phase 5** | **Self-Service Portal UI & Chat** | `ssp-ui`, `ssp-cp` | Build the React storefront (`ssp-ui`) with top-center search, frequent catalog, bottom-right conversational chat, template-driven form rendering (no redeploy per service), equivalent Terraform/`gcloud` CLI code preview, and SSO integration. | User can request and track a GCS bucket and Day-2 actions from `ssp-ui` and chat. |
+| **Phase 6** | **More GCP Resource Types** | `ssp-module-spanner`, `ssp-module-vm`, `ssp-module-postgres`, `ssp-cp`, `ssp-workers` | Onboard additional 2.0 GCP services (Spanner in existing `ssp-module-spanner`, GCE VMs with post-build Temporal workflows, relational DBs, BigQuery datasets). | Each new `ssp-module-<type>` passes the 7-stage factory gate and registers in the catalog without redeploying `ssp-ui`. |
 
 ## Requirements
 
@@ -54,7 +54,7 @@ The AI Software Factory (`spp-factory-foundation`) and engineering team MUST exe
 
 ### Positive
 
-- De-risks the platform architecture (`ssp-cp` -> PostgreSQL -> Temporal `platform` namespace -> K8s Job `tf-op-<operation_id>` -> `gs://microdrive-dev-spp-tfstate`) using the simplest cloud resource (`google_storage_bucket`) before adding UI or complex post-build workflows.
+- De-risks the platform architecture (`ssp-cp` -> PostgreSQL -> Temporal `platform` namespace -> K8s Job `tf-op-<operation_id>` -> `gs://microdrive-dev-spp-tfstate`) using the simplest GCP resource (`google_storage_bucket`) before adding UI or complex post-build workflows.
 - Gives the AI Software Factory a clean, sequential backlog of work items with unambiguous dependencies.
 
 ### Negative / Trade-offs

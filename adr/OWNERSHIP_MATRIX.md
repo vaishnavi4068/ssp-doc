@@ -16,7 +16,7 @@ Every ADR in `ssp-doc` requires a tracked owner consisting of **both** a shared 
 | **API Forge (Apigee / AppGX)** | **Kai** *(transitioning from Jim)* | `@kai-todo` | `spp-apiforge@tbd` | Enterprise API Gateway onboarding and Phase 2 OAuth / OIDC ingress in GCP |
 | **Security** | **Raju's team** *(plus Durant)* | `@raju-security-todo` | `spp-security@tbd` | Security baseline rules injected in `Approved` state (CMEK, `>= 90d` retention, public access prevention) so Raju's scanner never deletes SPP resources |
 | **Operations & DBA** | **Allen**, **Karen**, **Norm** | `@allen-todo`, `@karen-todo`, `@norm-todo` | `spp-operations@tbd` | Non-bypassable Operations Gate (`ADR-GLB-007`), database operational rules, Jenkins DBA post-build criteria, persona permissions |
-| **Networking / CIDR / Infoblox** | **John Simon** | `@john-simon-todo` | `spp-network@tbd` | IP/CIDR range allocation and Infoblox integration for 2.0 projects |
+| **Networking / CIDR / Infoblox** | **John Simon** | `@john-simon-todo` | `spp-network@tbd` | IP/CIDR range allocation and Infoblox integration for 2.0 GCP projects |
 | **Executive Sponsor / DB Strategy** | **Saul** | `@saul-todo` | `spp-leadership@tbd` | Executive sponsorship and database hosting strategy |
 
 ---
@@ -36,8 +36,6 @@ Every ADR in `ssp-doc` requires a tracked owner consisting of **both** a shared 
 | **ADR-BP-002** | `business-process` | Product Build Order and Delivery Phasing | Manoj | `spp-architecture@tbd` | Manoj, Dwayne, Norm | Proposed (Unsigned) |
 | **ADR-SVC-001** | `endpoint-service` | First Vertical Slice — GCS Bucket End-to-End (No UI) | Manoj | `spp-storage-gcp@tbd` | Manoj, Dwayne, Norm, Raju | Proposed (Unsigned) |
 | **ADR-CLD-GCP-001** | `per-cloud (gcp)` | Runtime Platform (GKE `md-dev`, Tainted `spp-pool`, Namespaces, and Self-Hosted Temporal) | Manoj | `spp-cloud-gcp@tbd` | Manoj, Dwayne, Norm, Hurley | Proposed (Unsigned) |
-| **ADR-CLD-AWS-001** | `per-cloud (aws)` | AWS Per-Cloud Target Architecture | Dwayne | `spp-cloud-aws@tbd` | Manoj, Dwayne, Norm, Raju | Proposed (Unsigned) |
-| **ADR-CLD-AZR-001** | `per-cloud (azure)` | Azure Per-Cloud Target Architecture | Norm | `spp-cloud-azure@tbd` | Manoj, Dwayne, Norm, Raju | Proposed (Unsigned) |
 | **ADR-AUT-001** | `automation` | Terraform Execution via Deterministic Kubernetes Jobs | Dwayne | `spp-automation@tbd` | Manoj, Dwayne, Norm | Proposed (Unsigned) |
 | **ADR-AUT-002** | `automation` | Day-2 Operations Scope | Norm | `spp-automation@tbd` | Manoj, Dwayne, Norm, Allen/Karen | Proposed (Unsigned) |
 | **ADR-AUT-003** | `automation` | Software Factory ADR Flow, 10 Role Skills, and Verification Gates | Manoj | `spp-factory@tbd` | Manoj, Dwayne, Norm | Proposed (Unsigned) |

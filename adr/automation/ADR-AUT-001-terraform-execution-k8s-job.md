@@ -37,7 +37,7 @@ In the design discussion (`uploads/design-digest.md`):
      - If the Job already exists (`409 AlreadyExists` on create or found on read), the activity **reattaches** to the existing Job and resumes polling without creating a second Job.
 3. **Scheduling, Identity, and Polling:**
    - Each Job pod MUST include `nodeSelector: workload=spp` and toleration `dedicated=spp:NoSchedule` (`ADR-CLD-GCP-001`), `restartPolicy: Never`, `backoffLimit: 0` (retries are controlled explicitly by Temporal), non-root `securityContext`, and CPU/memory/timeout (`activeDeadlineSeconds`) limits.
-   - Each Job authenticates via GKE Workload Identity (`microdrive-dev.svc.id.goog`) and impersonates only the single target project's dedicated service account (`ADR-GLB-005`).
+   - Each Job authenticates via GKE Workload Identity (`microdrive-dev.svc.id.goog`) and impersonates only the single target GCP project's dedicated service account (`ADR-GLB-005`).
    - The Temporal activity polls Job status every **~30 seconds** (sending Temporal activity heartbeats on each poll) until `status.succeeded >= 1` or `status.failed >= 1`.
 4. **State Persistence in `gs://microdrive-dev-spp-tfstate`:**
    - The runner initializes the GCS backend pointing to bucket `gs://microdrive-dev-spp-tfstate` with prefix/key `expected/<project_id>/terraform.tfstate`.
@@ -63,7 +63,7 @@ In the design discussion (`uploads/design-digest.md`):
 ### Positive
 
 - **Crash Resilience:** If a `ssp-workers` pod restarts or scales down mid-apply, the `tf-op-<operation_id>` Kubernetes Job continues running unaffected on `spp-pool`, and the replacement worker reattaches to `tf-op-<operation_id>` seamlessly.
-- **Massive Parallelism:** Hundreds of Terraform runs across different 2.0 projects can execute concurrently as independent K8s Jobs scaled by GKE `spp-pool` without starving Temporal workers of CPU or memory.
+- **Massive Parallelism:** Hundreds of Terraform runs across different 2.0 GCP projects can execute concurrently as independent K8s Jobs scaled by GKE `spp-pool` without starving Temporal workers of CPU or memory.
 - **Zero Callback Ingress Complexity:** ~30-second polling within the same GKE cluster (`spp-platform`) requires no webhook ingress or callback authentication tokens.
 
 ### Negative / Trade-offs
@@ -99,7 +99,7 @@ In the design discussion (`uploads/design-digest.md`):
 
 ## Open Questions
 
-- [ ] **OQ-1 (Pre-Baked Provider Mirror in Runner Image):** Should the Terraform runner container image (`us-east1-docker.pkg.dev/microdrive-dev/spp/tf-runner:<tag>`) pre-bake the `hashicorp/google`, `hashicorp/aws`, and `hashicorp/azurerm` provider binaries into `/mirror` so `tf-op-<operation_id>` Jobs do not download providers from `registry.terraform.io` on every run?
+- [ ] **OQ-1 (Pre-Baked Provider Mirror in Runner Image):** Should the Terraform runner container image (`us-east1-docker.pkg.dev/microdrive-dev/spp/tf-runner:<tag>`) pre-bake the `hashicorp/google` and `hashicorp/google-beta` provider binaries into `/mirror` so `tf-op-<operation_id>` Jobs do not download providers from `registry.terraform.io` on every run?
 - [ ] **OQ-2 (Callback vs. 30s Polling Evolution):** At what concurrency threshold (beyond the initial 10–20 provisions/day target) should ~30s K8s Job polling be supplemented by a Kubernetes Job informer/watch stream in `ssp-workers`?
 - [ ] **OQ-3 (Payload Delivery to Runner Job):** Should `ssp-workers` pass the rendered Terraform configuration and `Approved` variables to `tf-op-<operation_id>` via an immutable per-operation object in `gs://microdrive-dev-spp-tfstate/runs/<operation_id>/` or via a per-Job Kubernetes `ConfigMap`?
 

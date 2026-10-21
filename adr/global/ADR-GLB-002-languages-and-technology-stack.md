@@ -30,7 +30,7 @@ To avoid fragmenting the runtime stack across multiple backend languages and to 
 | **Control Plane API (`ssp-cp`)** | Python `3.11+` | `FastAPI`, `Pydantic v2`, `SQLAlchemy 2.x`, `Alembic`, `psycopg` (PostgreSQL), `argon2-cffi`, `httpx` | `pytest`, `ruff` / `flake8`, `mypy`, `validate_schema.py` |
 | **Temporal Workers & Runner Launcher (`ssp-workers`)** | Python `3.11+` | `temporalio` (Temporal Python SDK), `kubernetes` (official Python K8s client), `google-cloud-storage` | `pytest`, Temporal workflow replay tests, offline K8s Job spec tests |
 | **Portal & Chat Storefront (`ssp-ui`)** | TypeScript `5.x` (Node `20+`) | `React 18+`, `Vite`, `Tailwind CSS`, declarative catalog templates (Handlebars / JSON Schema form renderer) | `tsc --noEmit`, `vitest` / `playwright`, `eslint` |
-| **Resource Modules (`ssp-module-<type>`)** | HCL (Terraform `>= 1.10`) | Cloud providers (`hashicorp/google`, `hashicorp/aws`, `hashicorp/azurerm`) | `terraform fmt -check`, `terraform validate`, `terraform test` (`mock_provider`), `tfsec` |
+| **Resource Modules (`ssp-module-<type>`)** | HCL (Terraform `>= 1.10`) | Google Cloud provider (`hashicorp/google` / `hashicorp/google-beta`) | `terraform fmt -check`, `terraform validate`, `terraform test` (`mock_provider "google"`), `tfsec` |
 | **Policy & Governance Gates (`ssp-doc`, `ssp-cp`, `ssp-module-*`)** | Rego (`rego.v1`), JSON Schema | `OPA v0.69+`, `Conftest v0.56+`, `jsonschema` (Draft 2020-12) | `opa test -v`, `conftest test`, `lint_adrs.py` |
 
 ## Requirements
@@ -38,7 +38,7 @@ To avoid fragmenting the runtime stack across multiple backend languages and to 
 - **REQ-1 (MUST):** The control plane service in `ssp-cp` MUST be implemented in Python (`>= 3.11`) using **FastAPI**, **Pydantic v2** for strict schema validation, and **SQLAlchemy / Alembic** for PostgreSQL persistence and schema migrations.
 - **REQ-2 (MUST):** Temporal workflows and activities in `ssp-workers` MUST be implemented in Python (`>= 3.11`) using the official **Temporal Python SDK (`temporalio`)** and the official **Kubernetes Python client** to launch and poll `tf-op-<operation_id>` Jobs in `spp-platform`.
 - **REQ-3 (MUST):** The user-facing portal and chat interface in `ssp-ui` MUST be implemented in **React** (with TypeScript) and MUST render service catalog forms dynamically from declarative templates/schemas so that adding a new `ssp-module-<type>` does not require rebuilding or redeploying `ssp-ui`.
-- **REQ-4 (MUST):** All Terraform modules in `ssp-module-<type>` MUST require **Terraform `>= 1.10.0`** (enabling native S3 lockfiles in AWS and `terraform test` with `mock_provider` across all clouds).
+- **REQ-4 (MUST):** All Terraform modules in `ssp-module-<type>` MUST require **Terraform `>= 1.10.0`** and support offline validation via `terraform test` with `mock_provider "google"`.
 - **REQ-5 (MUST):** All policy rules in `ssp-cp` and `ssp-module-<type>` MUST be written in **Rego (`import rego.v1`)** and accompanied by unit tests (`*_test.rego`).
 - **REQ-6 (SHOULD):** Shared Python schemas or contract models between `ssp-cp` and `ssp-workers` SHOULD be generated or validated directly against the canonical JSON Schema (`resource-request.schema.json`) to prevent drift.
 
@@ -84,7 +84,7 @@ To avoid fragmenting the runtime stack across multiple backend languages and to 
 | `ssp-cp` | Implemented in Python (FastAPI, SQLAlchemy, Alembic, OPA evaluation) |
 | `ssp-workers` | Implemented in Python (`temporalio` SDK, `kubernetes` client) |
 | `ssp-ui` | Implemented in React + TypeScript with template-driven catalog forms |
-| `ssp-module-<type>` | Implemented in Terraform `>= 1.10` HCL and OPA Rego (`rego.v1`) |
+| `ssp-module-<type>` | Implemented in Terraform `>= 1.10` HCL (`hashicorp/google`) and OPA Rego (`rego.v1`) |
 | `spp-factory-foundation` | Aligns `control-plane` and `portal-and-catalog` skills with Python/FastAPI and React |
 
 ## Open Questions

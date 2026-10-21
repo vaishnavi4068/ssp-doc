@@ -10,7 +10,7 @@
 
 ## Goal
 
-Establish a clean-slate Open Policy Agent (`OPA` / `Rego`) governance framework and deterministic verification gate architecture—with zero policy reuse from legacy "taxi"—that enforces security defaults (CMEK, `>= 90`-day retention, Raju baseline, no secrets), approved cloud regions, naming/labeling rules, and the non-bypassable Operations Gate both in CI (`spp-factory-foundation/gates/`) and at runtime (`ssp-cp`).
+Establish a clean-slate Open Policy Agent (`OPA` / `Rego`) governance framework and deterministic verification gate architecture—with zero policy reuse from legacy "taxi"—that enforces security defaults (CMEK, `>= 90`-day retention, Raju baseline, no secrets), approved GCP regions, naming/labeling rules, and the non-bypassable Operations Gate both in CI (`spp-factory-foundation/gates/`) and at runtime (`ssp-cp`).
 
 ## Context
 
@@ -34,11 +34,11 @@ From the design discussion (`uploads/design-digest.md`) and `spp-factory-foundat
      7. Static security scan (`tfsec`)
    - **Runtime (`ssp-cp` Transition from `Requested` to `Approved`):** Before `ssp-cp` persists an `Approved` spec or starts a Temporal workflow in `platform`, it enriches the request with security/operational defaults and evaluates the canonical JSON Schema + OPA policy bundle. Any policy `deny` blocks execution immediately.
 2. **Mandatory Global Rego Policy Rules (`gates/policies/spp_gate.rego`):**
-   - **State & 2.0 Scope:** `state` in `{"requested", "approved"}`; `layout_version == "2.0"`; `resource_type != "google_bigquery_table"` (BigQuery datasets only).
+   - **State, Cloud & 2.0 Scope:** `state` in `{"requested", "approved"}`; `cloud == "gcp"`; `layout_version == "2.0"`; `resource_type != "google_bigquery_table"` (BigQuery datasets only).
    - **Zero Secrets:** Reject any key matching `password`, `passwd`, `secret`, `private_key`, `api_key`, `apikey`, `access_token`, `auth_token`, `bearer_token`, `client_secret`, `connection_string`, `credentials`, or values matching private key / token / credential regexes.
    - **Required Labels:** `apm_id`, `cost_center`, `environment`, `owner`, `data_classification` present and non-empty.
-   - **Naming Convention:** `resource_name` matches `^(gcp|aws|azr)-[a-z0-9]+-(sandbox|dev|nonprod|prod)-[a-z0-9-]+$`.
-   - **Approved Regions:** `gcp`: `{"us-east4", "us-central1"}` (plus `us-east1` where approved for `microdrive-dev` runtime/lab—see `OQ-1`); `aws`: `{"us-east-1", "us-west-2"}`; `azure`: `{"eastus", "centralus"}`.
+   - **Naming Convention:** `resource_name` matches `^gcp-[a-z0-9]+-(sandbox|dev|nonprod|prod)-[a-z0-9-]+$`.
+   - **Approved GCP Regions:** `{"us-east4", "us-central1"}` (plus `us-east1` where approved for `microdrive-dev` runtime/lab—see `OQ-1`).
    - **`Approved`-State Security Baseline:** `security.cmek_enabled == true`, non-empty `security.cmek_key_id`, `security.retention_days >= 90`, `security.public_access_prevention == "enforced"`, `security.raju_baseline_applied == true`.
    - **`Approved`-State Storage & Identity:** `state_backend.expected_key == "expected/<project_id>/terraform.tfstate"`, `state_backend.observed_key == "observed/<project_id>/terraform.tfstate"`, and `service_account_email` contains `project_id`.
    - **`Approved`-State Operations & ITSM Gate:** `servicenow.record_id` matches `^REQ[0-9]{7,10}$`; for `environment == "prod"`, `servicenow.change_request_id` matches `^CHG[0-9]{7,10}$`; `cmdb.registration_required == true` and `cmdb.ci_class` non-empty; `operations_gate.approved == true` and `operations_gate.bypass_allowed == false`.

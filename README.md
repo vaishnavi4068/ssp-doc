@@ -1,6 +1,6 @@
 # `ssp-doc` — Prerequisite & Architecture ADRs for the Self-Service Provisioning Platform (SPP)
 
-This repository (`ssp-doc`) is the **source of truth for all prerequisite and cross-cutting Architecture Decision Records (ADRs)** for the **Self-Service Provisioning Platform (SPP)**—a clean-slate, multi-cloud self-service infrastructure provisioning control plane (internal developer portal) replacing legacy "taxi" across **GCP, AWS, and Azure**.
+This repository (`ssp-doc`) is the **source of truth for all prerequisite and cross-cutting Architecture Decision Records (ADRs)** for the **Self-Service Provisioning Platform (SPP)**—a clean-slate, self-service infrastructure provisioning control plane (internal developer portal) replacing legacy "taxi" on **Google Cloud Platform (GCP)**.
 
 SPP is built, verified, and governed by an **AI Software Factory ("Dark Factory")** hosted in [`github.com/vaishnavi4068/spp-factory-foundation`](https://github.com/vaishnavi4068/spp-factory-foundation). The software factory consumes ADRs as its **only input**: humans author, review, and sign off ADRs here (and per-service ADRs in `ssp-cp`), and the factory's unified coding agent translates those ADRs into schemas, OPA/Rego policies, Terraform modules, Python FastAPI control-plane code, Temporal workflows, and React UI catalog templates.
 
@@ -83,13 +83,9 @@ SPP is built, verified, and governed by an **AI Software Factory ("Dark Factory"
     │   └── ADR-BP-002-build-order-and-phasing.md
     ├── endpoint-service/                                              # Level 3: Per-service / vertical slice specifications
     │   └── ADR-SVC-001-first-vertical-slice-gcs-bucket.md
-    ├── per-cloud/                                                     # Level 4: Cloud-specific runtime & target architectures
-    │   ├── gcp/
-    │   │   └── ADR-CLD-GCP-001-runtime-platform-gke-and-temporal.md
-    │   ├── aws/
-    │   │   └── ADR-CLD-AWS-001-aws-target-architecture.md
-    │   └── azure/
-    │       └── ADR-CLD-AZR-001-azure-target-architecture.md
+    ├── per-cloud/                                                     # Level 4: Cloud-specific runtime & target architectures (extensible per cloud)
+    │   └── gcp/
+    │       └── ADR-CLD-GCP-001-runtime-platform-gke-and-temporal.md
     └── automation/                                                    # Level 5: Runner execution, Day-2 ops, factory flow
         ├── ADR-AUT-001-terraform-execution-k8s-job.md
         ├── ADR-AUT-002-day-2-operations-scope.md
@@ -107,7 +103,7 @@ SPP is built, verified, and governed by an **AI Software Factory ("Dark Factory"
 | **1. Global** | [`adr/global/`](adr/global/) | `ADR-GLB-NNN` | Architecture overview, language stack (Python FastAPI + Temporal workers, React UI), 4-state model (`Requested`/`Approved` in Postgres, `Expected`/`Observed` in GCS), relational data model, Workload Identity & auth, naming/labeling conventions, and OPA/Rego governance gates |
 | **2. Business Process** | [`adr/business-process/`](adr/business-process/) | `ADR-BP-NNN` | Ownership map (Ken O'Connor, Hurley, Kai, Raju's team, Allen, Karen, Norm, Manoj, Dwayne), ServiceNow/CMDB integration, APM ID tiering, persona permissions, and the 6-phase product build order |
 | **3. Endpoint / Service** | [`adr/endpoint-service/`](adr/endpoint-service/) | `ADR-SVC-NNN` | Cross-cutting vertical slice specifications (first vertical slice = GCS bucket end-to-end with no UI); detailed per-service ADRs for GCS, Spanner, VM, API, and DB migrations live in `ssp-cp` |
-| **4. Per Cloud** | [`adr/per-cloud/{gcp,aws,azure}/`](adr/per-cloud/) | `ADR-CLD-<CLOUD>-NNN` | GCP runtime platform (`md-dev`, dedicated tainted `spp-pool`, K8s namespaces `spp-temporal`/`spp-factory`/`spp-platform`, self-hosted Temporal with Postgres, Temporal namespaces `factory` and `platform`) and per-cloud 2.0 target architectures |
+| **4. Per Cloud** | [`adr/per-cloud/gcp/`](adr/per-cloud/gcp/) | `ADR-CLD-GCP-NNN` | GCP runtime platform (`md-dev`, dedicated tainted `spp-pool`, K8s namespaces `spp-temporal`/`spp-factory`/`spp-platform`, self-hosted Temporal with Postgres, Temporal namespaces `factory` and `platform`) and GCP 2.0 target architecture |
 | **5. Automation** | [`adr/automation/`](adr/automation/) | `ADR-AUT-NNN` | Terraform execution (1 K8s Job per run in `spp-platform`, state in `gs://microdrive-dev-spp-tfstate`), Day-2 operations scope (update, resize, upgrade, drift detection, rollback, decommission, cost), and software factory ADR flow |
 
 ---

@@ -10,13 +10,13 @@
 
 ## Goal
 
-Establish a zero-static-key identity and authentication architecture for SPP using **GKE Workload Identity** for all control-plane and runner pods, **one dedicated service account per target project** impersonated by a central platform service account ("kill button"), and **local Argon2id login now transitioning to enterprise SSO/OAuth later**.
+Establish a zero-static-key identity and authentication architecture for SPP using **GKE Workload Identity** for all control-plane and runner pods, **one dedicated service account per target GCP project** impersonated by a central platform service account ("kill button"), and **local Argon2id login now transitioning to enterprise SSO/OAuth later**.
 
 ## Context
 
 In the design discussion (`uploads/design-digest.md`) and factory runtime deployment (`spp-factory-foundation/docs/factory/runbook.md`):
 
-1. **Assume Breach & Eliminate Shared Environment SAs:** Dwayne emphasized "we will be hacked" and the need to limit blast radius. Legacy "taxi" used only 3 shared service accounts (`prod`, `nonprod`, `sandbox`) across all projects. SPP replaces this with **one dedicated service account per 2.0 project/account/subscription**, impersonated for the duration of a single run by the central SPP platform service account, which acts as a global **kill button**.
+1. **Assume Breach & Eliminate Shared Environment SAs:** Dwayne emphasized "we will be hacked" and the need to limit blast radius. Legacy "taxi" used only 3 shared service accounts (`prod`, `nonprod`, `sandbox`) across all projects. SPP replaces this with **one dedicated service account per 2.0 GCP project**, impersonated for the duration of a single run by the central SPP platform service account, which acts as a global **kill button**.
 2. **Workload Identity Only — No Static Keys Ever:** All workloads on GKE `md-dev` (`microdrive-dev`) authenticate to GCP services using GKE Workload Identity (`microdrive-dev.svc.id.goog`). Exporting or mounting service account JSON private keys is strictly forbidden.
 3. **Strict Isolation Between Factory (`spp-factory`) and Runtime Platform (`spp-platform`):** In `spp-factory-foundation`, Kubernetes ServiceAccount `factory-agent` in `spp-factory` is bound via Workload Identity to `spp-factory-agent@microdrive-dev.iam.gserviceaccount.com` (which has **only** Vertex AI model invocation permissions and zero cloud provisioning permissions). Only the runtime runner service account in `spp-platform` may impersonate target project provisioning service accounts.
 4. **Local Login Now, SSO Later:** To unblock immediate operation on `md-dev` before enterprise SSO / API Forge (Apigee) onboarding with Kai is complete, SPP uses hardened local username/password authentication (Argon2id hashing, bootstrap passwords in GCP Secret Manager, mandatory password rotation on first login, HTTP-only `__Host-` session cookies, CSRF tokens, rate limiting, and 5-attempt lockout) and will transition to corporate SSO / OIDC / OAuth2 later.
@@ -25,7 +25,7 @@ In the design discussion (`uploads/design-digest.md`) and factory runtime deploy
 
 1. **Pod-to-Cloud Identity (GKE Workload Identity, Zero Keys):**
    - Every GKE pod in `spp-platform` and `spp-factory` authenticates via GKE Workload Identity (`microdrive-dev.svc.id.goog`).
-   - Long-lived GCP service account JSON keys, AWS static `AKIA*` access keys, and Azure static client secrets are prohibited in code, images, ConfigMaps, K8s Secrets, and Terraform state.
+   - Long-lived GCP service account JSON keys are prohibited in code, images, ConfigMaps, K8s Secrets, and Terraform state.
 2. **Provisioning Blast-Radius Model (1 SA per Project + Platform SA Kill Button):**
    - Each 2.0 target GCP project has a dedicated service account (e.g., `spp-provisioner@<target-project-id>.iam.gserviceaccount.com`).
    - The SPP Terraform runner Kubernetes Job in `spp-platform` runs under a Kubernetes ServiceAccount bound via Workload Identity to the **SPP Platform Service Account** ("kill button"), which holds `roles/iam.serviceAccountTokenCreator` only on onboarded per-project service accounts.
@@ -41,7 +41,7 @@ In the design discussion (`uploads/design-digest.md`) and factory runtime deploy
 ## Requirements
 
 - **REQ-1 (MUST):** All GKE workloads in `spp-platform`, `spp-factory`, and `spp-temporal` MUST use GKE Workload Identity (`microdrive-dev.svc.id.goog`) for GCP authentication and MUST NOT use service account JSON key files.
-- **REQ-2 (MUST):** Every target 2.0 GCP project, AWS account, and Azure subscription MUST use a dedicated per-project/account/subscription provisioning identity impersonated by the central SPP Platform Service Account ("kill button").
+- **REQ-2 (MUST):** Every target 2.0 GCP project MUST use a dedicated per-project provisioning service account impersonated by the central SPP Platform Service Account ("kill button").
 - **REQ-3 (MUST):** In `Approved` state payloads, `service_account_email` MUST belong to the target `project_id` (enforced by OPA rule in `gates/policies/spp_gate.rego`).
 - **REQ-4 (MUST):** Phase 1 local authentication in `ssp-cp` MUST enforce Argon2id password hashing, Secret Manager bootstrap secrets, mandatory first-login password rotation, CSRF protection, login rate limiting, and account lockout after 5 consecutive failed attempts.
 - **REQ-5 (MUST):** The authentication layer in `ssp-cp` MUST use a pluggable principal dependency so transitioning from local session cookies to OIDC/OAuth2 bearer tokens (via API Forge / Apigee) requires zero changes to downstream API route handlers or audit logging.
@@ -59,12 +59,12 @@ In the design discussion (`uploads/design-digest.md`) and factory runtime deploy
 ### Positive
 
 - Zero static cloud credentials to leak or rotate across GKE pods and Terraform runner Jobs.
-- Immediate, single-point emergency stop ("kill button") via the central SPP Platform Service Account while isolating each run's blast radius to one target project.
+- Immediate, single-point emergency stop ("kill button") via the central SPP Platform Service Account while isolating each run's blast radius to one target GCP project.
 - Immediate operational readiness on `md-dev` via local Argon2id login without blocking on corporate SSO/Apigee timelines.
 
 ### Negative / Trade-offs
 
-- Onboarding thousands of 2.0 projects requires an automated project-bootstrap step (coordinated with Hurley) to create each project's SA and bind `roles/iam.serviceAccountTokenCreator` to the central SPP Platform SA.
+- Onboarding thousands of 2.0 GCP projects requires an automated project-bootstrap step (coordinated with Hurley) to create each project's SA and bind `roles/iam.serviceAccountTokenCreator` to the central SPP Platform SA.
 
 ## Acceptance Criteria
 
@@ -98,7 +98,6 @@ In the design discussion (`uploads/design-digest.md`) and factory runtime deploy
 
 - [ ] **OQ-1 (Platform SA & Tenant SA Provisioning with Hurley):** What is the exact GCP Service Account email that Hurley will issue for the `spp-platform` Terraform runner in `microdrive-dev` (assumed placeholder: `spp-tf-runner@microdrive-dev.iam.gserviceaccount.com`), and for the first vertical slice in `microdrive-dev`, which target SA will it impersonate?
 - [ ] **OQ-2 (SSO & API Forge / Apigee Cutover with Kai):** What is the target OIDC issuer URL, group/role claim mapping, and API Forge (Apigee) onboarding timeline with Kai for Phase 2 SSO and OAuth bearer token validation?
-- [ ] **OQ-3 (Cross-Cloud Workforce/Workload Identity Federation):** For AWS and Azure targets, confirm the OIDC federation trust path from the GCP-hosted runner SA to AWS IAM Roles (`AssumeRoleWithWebIdentity`) and Azure Managed Identities / Federated Credentials.
 
 ## Related ADRs
 

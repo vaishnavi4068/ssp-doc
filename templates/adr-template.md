@@ -1,7 +1,7 @@
 # ADR-XXXX: [Short Descriptive Title]
 
 - **ADR ID:** ADR-XXXX
-- **Level:** [global | business-process | endpoint-service | per-cloud (gcp) | per-cloud (aws) | per-cloud (azure) | automation]
+- **Level:** [global | business-process | endpoint-service | per-cloud (gcp) | automation]
 - **Status:** Proposed
 - **Owner:** TBD (Shared Mailbox: `<team-mailbox@tbd>`, Named Owner: `TBD`)
 - **Signers:** Unsigned (Required Signers: Manoj [Architect], Dwayne [Approver], Norm [Approver], `<Domain Owner>`)

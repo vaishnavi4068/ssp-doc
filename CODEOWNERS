@@ -29,7 +29,7 @@
 # Level 3: Endpoint / Service ADRs (First Vertical Slice: GCS Bucket, etc.)
 /adr/endpoint-service/          @vaishnavi4068 @manoj-todo @dwayne-todo @norm-todo
 
-# Level 4: Per-Cloud ADRs (GCP Runtime & Target, AWS Target, Azure Target)
+# Level 4: Per-Cloud ADRs (GCP Runtime & Target Architecture)
 # TODO: Add @hurley-todo (GCP SA/Cluster) and @kai-todo (API Forge/Apigee)
 /adr/per-cloud/                 @vaishnavi4068 @manoj-todo @dwayne-todo @norm-todo
 

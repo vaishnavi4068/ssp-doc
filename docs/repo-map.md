@@ -1,6 +1,6 @@
 # SPP Repository Map (`docs/repo-map.md`)
 
-This document defines the repository topology for the **Self-Service Provisioning Platform (SPP)**—a multi-cloud self-service infrastructure provisioning control plane (internal developer portal)—and how each product repository interacts with the **AI Software Factory** (`github.com/vaishnavi4068/spp-factory-foundation`).
+This document defines the repository topology for the **Self-Service Provisioning Platform (SPP)**—a self-service infrastructure provisioning control plane (internal developer portal) on GCP—and how each product repository interacts with the **AI Software Factory** (`github.com/vaishnavi4068/spp-factory-foundation`).
 
 ---
 
@@ -8,12 +8,12 @@ This document defines the repository topology for the **Self-Service Provisionin
 
 | Repository | Category | Primary Stack | Kubernetes Namespace / Target | Purpose & Scope |
 | :--- | :--- | :--- | :--- | :--- |
-| **[`ssp-doc`](https://github.com/vaishnavi4068/ssp-doc)** | Architecture & Prerequisite ADRs | Markdown | Consumed by Factory (`spp-factory`) | Source of truth for all prerequisite and cross-cutting architecture ADRs across the 5 ADR levels (`adr/global/`, `adr/business-process/`, `adr/endpoint-service/`, `adr/per-cloud/`, `adr/automation/`), `templates/adr-template.md`, `CODEOWNERS`, and this repo map. |
+| **[`ssp-doc`](https://github.com/vaishnavi4068/ssp-doc)** | Architecture & Prerequisite ADRs | Markdown | Consumed by Factory (`spp-factory`) | Source of truth for all prerequisite and cross-cutting architecture ADRs across the 5 ADR levels (`adr/global/`, `adr/business-process/`, `adr/endpoint-service/`, `adr/per-cloud/gcp/`, `adr/automation/`), `templates/adr-template.md`, `CODEOWNERS`, and this repo map. |
 | **[`spp-factory-foundation`](https://github.com/vaishnavi4068/spp-factory-foundation)** | AI Software Factory ("Dark Factory") | Python (FastAPI, Temporal SDK), React, Rego, Bash | GKE `md-dev` (`spp-factory` namespace, Temporal `factory` namespace) | The AI software factory that builds and verifies SPP. Houses the 10 agent role skills (`agents/skills/*/SKILL.md`), the 7-stage verification gate (`gates/`), the resource repo skeleton (`templates/resource-repo/`), and the Factory Console. Consumes ADRs as its **only input**. |
 | **[`ssp-cp`](https://github.com/vaishnavi4068/ssp-cp)** | Control Plane API, DB & Per-Service ADRs | Python (FastAPI, SQLAlchemy/Alembic), OPA/Rego, PostgreSQL | GKE `md-dev` (`spp-platform` namespace) | Control plane runtime code (REST API, local auth now / SSO later, synchronous `Requested` persistence, `Approved` state guardrail enrichment, OPA policy evaluation, PostgreSQL schema & DB migrations) **plus** detailed per-service and component ADRs for GCS, Spanner, VM, API, and DB migrations. |
 | **[`ssp-workers`](https://github.com/vaishnavi4068/ssp-workers)** | Orchestration Workers & Runner Launcher | Python (Temporal Python SDK, Kubernetes client), Docker | GKE `md-dev` (`spp-platform` namespace, Temporal `platform` namespace) | Temporal workflows and activities for create (`Approved -> Expected -> Observed`), post-build bootstrap (ServiceNow/CMDB hooks, notifications), and Day-2 operations (update, resize, upgrade, drift detection, rollback, decommission, cost), plus the Terraform runner launcher that spawns one deterministic Kubernetes Job (`tf-op-<operation_id>`) per run in `spp-platform`. |
 | **`ssp-ui`** *(planned)* | Self-Service Portal & Chat UI | React, TypeScript, Vite, Tailwind CSS | GKE `md-dev` (`spp-platform` namespace) | User-facing internal developer portal and embedded conversational chat assistant (built in Phase 5 after GCS end-to-end and Day-2). Renders service catalog forms dynamically from templates/schemas and shows equivalent Terraform/CLI previews without redeploying the portal when new resource types are added. |
-| **`ssp-module-<type>`** *(e.g. [`ssp-module-spanner`](https://github.com/vaishnavi4068/ssp-module-spanner), `ssp-module-gcs`)* | Per-Resource Terraform Module & Policy Bundle | Terraform (`>= 1.10`), OPA/Rego, JSON | Executed by runner Jobs in `spp-platform`; state in `gs://microdrive-dev-spp-tfstate` (and per-LOB buckets) | One repository per cloud resource type (scaling toward ~500 repos). Contains the Terraform module (`module/`), per-resource Rego policies and unit tests (`policies/`), `requested.json` and `approved.json` payloads (`examples/`), and credential-free `terraform test` suites (`tests/`). |
+| **`ssp-module-<type>`** *(e.g. [`ssp-module-spanner`](https://github.com/vaishnavi4068/ssp-module-spanner), `ssp-module-gcs`)* | Per-Resource Terraform Module & Policy Bundle | Terraform (`>= 1.10`), OPA/Rego, JSON | Executed by runner Jobs in `spp-platform`; state in `gs://microdrive-dev-spp-tfstate` (and per-LOB buckets) | One repository per GCP resource type (scaling toward ~500 repos). Contains the Terraform module (`module/`), per-resource Rego policies and unit tests (`policies/`), `requested.json` and `approved.json` payloads (`examples/`), and credential-free `terraform test` suites (`tests/`). |
 
 ---
 
@@ -26,7 +26,7 @@ This document defines the repository topology for the **Self-Service Provisionin
   - `adr/global/` — Platform-wide invariants (`ADR-GLB-001` .. `ADR-GLB-007`)
   - `adr/business-process/` — Ownership map, ITSM/CMDB governance, and build order (`ADR-BP-001` .. `ADR-BP-002`)
   - `adr/endpoint-service/` — Cross-cutting vertical slice specifications (`ADR-SVC-001` for GCS bucket end-to-end without UI)
-  - `adr/per-cloud/{gcp,aws,azure}/` — Runtime platform on GCP (`md-dev`) and per-cloud target architectures (`ADR-CLD-GCP-001`, `ADR-CLD-AWS-001`, `ADR-CLD-AZR-001`)
+  - `adr/per-cloud/gcp/` — Runtime platform on GCP (`md-dev`) and GCP 2.0 target architecture (`ADR-CLD-GCP-001`; `adr/per-cloud/` remains extensible for future clouds)
   - `adr/automation/` — Deterministic Kubernetes Job Terraform execution, Day-2 operations scope, and factory ADR flow (`ADR-AUT-001` .. `ADR-AUT-003`)
   - `templates/adr-template.md` — Standardized ADR template required for all new decisions
   - `CODEOWNERS` — Review ownership (`manoj` as Architect; `dwayne` and `norm` as Approvers)
@@ -56,24 +56,24 @@ This document defines the repository topology for the **Self-Service Provisionin
 
 - **Role:** User-facing internal developer portal and conversational provisioning assistant, scheduled for Phase 5 of the build order (`ADR-BP-002`) after GCS create and Day-2 workflows are proven end-to-end via API.
 - **Runtime Responsibilities:**
-  - **React Storefront:** Search at top-center, frequently used service catalog, project/destination selector per cloud, order status tracker across the 4 states, and bottom-right embedded chat.
+  - **React Storefront:** Search at top-center, frequently used service catalog, GCP project selector, order status tracker across the 4 states, and bottom-right embedded chat.
   - **Template-Driven Rendering:** Renders request forms dynamically from ADR-derived schemas/templates (Handlebars / micro-frontend pattern) so adding a new `ssp-module-<type>` never requires redeploying `ssp-ui`.
-  - **"Show the Code" Preview:** Displays the equivalent Terraform HCL and cloud CLI (`gcloud` / `aws` / `az`) for every request.
+  - **"Show the Code" Preview:** Displays the equivalent Terraform HCL and `gcloud` CLI command for every request.
   - **Persona-Based UI Controls:** Enforces field visibility and Day-2 action permissions (`developer` vs. `operations` vs. `security`).
 
 ### 2.5 `ssp-module-<type>` — Per-Resource Terraform Modules & Policies
 
-- **Role:** Standardized, self-contained repository for each cloud resource type (derived from `spp-factory-foundation/templates/resource-repo/`), scaling toward ~500 repositories.
+- **Role:** Standardized, self-contained repository for each GCP resource type (derived from `spp-factory-foundation/templates/resource-repo/`), scaling toward ~500 repositories.
 - **Existing & Planned Repositories:**
   - `ssp-module-spanner` (`github.com/vaishnavi4068/ssp-module-spanner` — existing repository)
   - `ssp-module-gcs` (or `ssp-module-gcs-bucket` — first end-to-end vertical slice, `ADR-SVC-001`)
-  - Future modules: `ssp-module-cloudsql` / Postgres, `ssp-module-gce-vm`, `ssp-module-bigquery-dataset`, `ssp-module-s3-bucket`, `ssp-module-azure-storage`, etc.
+  - Future modules: `ssp-module-cloudsql` / Postgres, `ssp-module-gce-vm`, `ssp-module-bigquery-dataset`, etc.
 - **Standard Layout per Module Repo:**
   - `ADR.md` / `SKILL.md` — Links to the governing endpoint ADR and local agent instructions
   - `module/` — `versions.tf` (Terraform `>= 1.10`), `variables.tf`, `main.tf`, `outputs.tf` (must output immutable CSP `cloud_resource_id`)
   - `policies/` — Service-specific OPA/Rego rules and `*_test.rego` unit tests (may tighten, never weaken, global policies)
   - `examples/` — `requested.json` and `approved.json` payloads (zero secrets)
-  - `tests/` — Offline `terraform test` suites using `mock_provider` (zero cloud credentials required in CI)
+  - `tests/` — Offline `terraform test` suites using `mock_provider "google"` (zero cloud credentials required in CI)
   - `.github/workflows/gate.yml` — Calls the reusable 7-stage factory gate in `spp-factory-foundation`
 
 ---

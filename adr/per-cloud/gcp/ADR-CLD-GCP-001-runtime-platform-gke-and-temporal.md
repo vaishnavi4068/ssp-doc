@@ -16,7 +16,7 @@ Define the GCP runtime platform architecture hosting both the AI Software Factor
 
 In the design discussion (`uploads/design-digest.md`) and the live deployment of `spp-factory-foundation` (`docs/factory/runbook.md`, `ADR-AUT-004`, `ADR-AUT-005`):
 
-1. **GCP as Control Plane Home Cloud:** The team rejected AWS as the platform host cloud ("I don't think we should put our platform… in our smallest cloud") and chose **GCP** for the control plane, centralized PostgreSQL, self-hosted Temporal, and Kubernetes Job Terraform runners.
+1. **GCP as Control Plane and Target Cloud:** The team chose **GCP** for the control plane, centralized PostgreSQL, self-hosted Temporal, Kubernetes Job Terraform runners, and 2.0 target workloads.
 2. **Self-Hosted Temporal Instead of Shared DevX Temporal:** Although Mitch had negotiated access to DevX's shared Temporal instance, the team decided to **run their own dedicated self-hosted Temporal cluster** inside their own GKE environment to preserve operational isolation, control worker/runner networking, and keep the new project low-profile.
 3. **Runtime Cluster & Node Isolation (`md-dev` in `microdrive-dev`):**
    - **GCP Project & Region:** `microdrive-dev` (`us-east1`).
