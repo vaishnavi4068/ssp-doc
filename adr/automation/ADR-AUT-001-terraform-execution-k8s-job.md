@@ -35,13 +35,15 @@ In the design discussion (`uploads/design-digest.md`):
    - When the Temporal activity starts (including after a worker crash, restart, or activity retry):
      - It calls the Kubernetes API (`read_namespaced_job`) for `tf-op-<operation_id>` in `spp-platform`.
      - If the Job already exists (`409 AlreadyExists` on create or found on read), the activity **reattaches** to the existing Job and resumes polling without creating a second Job.
-3. **Scheduling, Identity, and Polling:**
+3. **Scheduling, Identity, Provider Mirror, and Polling:**
    - Each Job pod MUST include `nodeSelector: workload=spp` and toleration `dedicated=spp:NoSchedule` (`ADR-CLD-GCP-001`), `restartPolicy: Never`, `backoffLimit: 0` (retries are controlled explicitly by Temporal), non-root `securityContext`, and CPU/memory/timeout (`activeDeadlineSeconds`) limits.
+   - The runner container image (`us-east1-docker.pkg.dev/microdrive-dev/spp/tf-runner:<tag>`) **pre-bakes the `hashicorp/google` and `hashicorp/google-beta` provider binaries into a local filesystem mirror (`/mirror`)** so `terraform init` runs deterministically without external registry downloads.
    - Each Job authenticates via GKE Workload Identity (`microdrive-dev.svc.id.goog`) and impersonates only the single target GCP project's dedicated service account (`ADR-GLB-005`).
    - The Temporal activity polls Job status every **~30 seconds** (sending Temporal activity heartbeats on each poll) until `status.succeeded >= 1` or `status.failed >= 1`.
-4. **State Persistence in `gs://microdrive-dev-spp-tfstate`:**
+4. **Run Payload & State Persistence in `gs://microdrive-dev-spp-tfstate`:**
+   - Before launching `tf-op-<operation_id>`, `ssp-workers` writes the rendered project root module and `Approved` input payload to `gs://microdrive-dev-spp-tfstate/runs/<operation_id>/`.
    - The runner initializes the GCS backend pointing to bucket `gs://microdrive-dev-spp-tfstate` with prefix/key `expected/<project_id>/terraform.tfstate`.
-   - Upon completion of `terraform apply`, the runner captures/updates `observed/<project_id>/terraform.tfstate` in `gs://microdrive-dev-spp-tfstate` and emits a structured result summary (`cloud_resource_id`, `expected_state_uri`, `observed_state_uri`, outputs).
+   - Upon completion of `terraform apply`, the runner writes `gs://microdrive-dev-spp-tfstate/runs/<operation_id>/result.json` (`cloud_resource_id`, `expected_state_uri`, `observed_state_uri`, outputs), and the independent GCP API capture job updates `observed/<project_id>/terraform.tfstate` (`ADR-AUT-002`).
 
 ## Requirements
 
@@ -99,9 +101,9 @@ In the design discussion (`uploads/design-digest.md`):
 
 ## Open Questions
 
-- [ ] **OQ-1 (Pre-Baked Provider Mirror in Runner Image):** Should the Terraform runner container image (`us-east1-docker.pkg.dev/microdrive-dev/spp/tf-runner:<tag>`) pre-bake the `hashicorp/google` and `hashicorp/google-beta` provider binaries into `/mirror` so `tf-op-<operation_id>` Jobs do not download providers from `registry.terraform.io` on every run?
-- [ ] **OQ-2 (Callback vs. 30s Polling Evolution):** At what concurrency threshold (beyond the initial 10–20 provisions/day target) should ~30s K8s Job polling be supplemented by a Kubernetes Job informer/watch stream in `ssp-workers`?
-- [ ] **OQ-3 (Payload Delivery to Runner Job):** Should `ssp-workers` pass the rendered Terraform configuration and `Approved` variables to `tf-op-<operation_id>` via an immutable per-operation object in `gs://microdrive-dev-spp-tfstate/runs/<operation_id>/` or via a per-Job Kubernetes `ConfigMap`?
+- [x] **OQ-1 (Pre-Baked Provider Mirror in Runner Image — RESOLVED 2026-10-21):** *Resolved:* Pre-bake `hashicorp/google` and `hashicorp/google-beta` into `/mirror` inside the `tf-runner` container image.
+- [x] **OQ-2 (Callback vs. 30s Polling Evolution — RESOLVED 2026-10-21):** *Resolved:* Keep **~30-second K8s Job polling** for the MVP.
+- [x] **OQ-3 (Payload Delivery to Runner Job — RESOLVED 2026-10-21):** *Resolved:* Pass the rendered Terraform configuration and `Approved` variables via `gs://microdrive-dev-spp-tfstate/runs/<operation_id>/`.
 
 ## Related ADRs
 

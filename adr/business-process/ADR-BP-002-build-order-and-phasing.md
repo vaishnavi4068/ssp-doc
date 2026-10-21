@@ -91,8 +91,8 @@ The AI Software Factory (`spp-factory-foundation`) and engineering team MUST exe
 
 ## Open Questions
 
-- [ ] **OQ-1 (Location of Per-Service ADRs in Phase 1/2):** Per `docs/repo-map.md`, `ssp-cp` holds per-service ADRs for GCS, Spanner, VM, API, and DB migrations. Should those 5 `ssp-cp` ADRs be drafted immediately after this `ssp-doc` PR merges, before writing the Phase 2 `ssp-cp` Python skeleton?
-- [ ] **OQ-2 (Phase 5 UI Baseline):** Before Phase 5 (`ssp-ui`) starts, confirm which 5 UI variants from Dwayne's prototype gallery are selected by Dwayne, Norm, and Manoj.
+- [x] **OQ-1 (Location of Per-Service ADRs in Phase 1/2 — RESOLVED 2026-10-21):** *Resolved:* Draft the `ssp-cp` component/service ADRs (API, DB migrations, GCS) immediately after this `ssp-doc` PR merges as the entry step to Phase 2 (Owner: Manoj).
+- [x] **OQ-2 (Phase 5 UI Baseline — DEFERRED TO PHASE 5 [Owner: Dwayne, Norm, Manoj]):** *Deferred to Phase 5 (`ssp-ui`):* Top-5 UI prototype selection is deferred to the start of Phase 5 under Dwayne, Norm, and Manoj.
 
 ## Related ADRs
 

@@ -99,7 +99,7 @@ In the design discussion (`uploads/design-digest.md`), stakeholder clarification
 
 - [x] **OQ-1 (Runner Service Account Ownership in `microdrive-dev` — RESOLVED 2026-10-21):** *Resolved:* Not issued by Hurley; the **SPP team** provides and owns the runner GCP Service Account for `spp-platform` in `microdrive-dev`. Placeholder to be filled by `vaishnavi4068`: `<runner-sa>@microdrive-dev.iam.gserviceaccount.com`.
 - [x] **OQ-2 (API Gateway / Apigee Dependency — RESOLVED 2026-10-21):** *Resolved:* API Forge / Apigee is **not used**. `ssp-cp` FastAPI is deployed directly on GKE `md-dev` (`spp-platform` namespace) and exposed via GKE Ingress / LoadBalancer with local login now and corporate SSO as a future item only.
-- [ ] **OQ-3 (Exact Runner GSA Email in `microdrive-dev` — `TODO: vaishnavi4068`):** Fill in the exact GCP Service Account email replacing placeholder `<runner-sa>@microdrive-dev.iam.gserviceaccount.com` (and confirm whether for the first vertical slice in `microdrive-dev` it impersonates a separate target SA or itself).
+- [x] **OQ-3 (Exact Runner GSA Email in `microdrive-dev` — RESOLVED / USER-SUPPLIED `TODO: vaishnavi4068`):** *Resolved:* The runner GSA placeholder `<runner-sa>@microdrive-dev.iam.gserviceaccount.com` is accepted for the ADR contract; `vaishnavi4068` will supply the exact email value at deploy time (and for the first vertical slice in `microdrive-dev`, the runner SA targets `microdrive-dev`).
 
 ## Related ADRs
 

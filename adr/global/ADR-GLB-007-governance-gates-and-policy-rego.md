@@ -106,7 +106,7 @@ From the design discussion (`uploads/design-digest.md`) and `spp-factory-foundat
 ## Open Questions
 
 - [x] **OQ-1 (Approved GCP Regions — RESOLVED 2026-10-21):** *Resolved:* `approved_regions.gcp` is **`{"us-east1"}` only** for now (replacing `us-east4` and `us-central1`).
-- [ ] **OQ-2 (Complete Raju Security Rule Catalog):** Has Raju's team provided the exhaustive list of resource-specific compliance rules beyond CMEK, `>= 90`-day retention, uniform bucket-level access, and public access prevention?
+- [x] **OQ-2 (Complete Raju Security Rule Catalog — RESOLVED 2026-10-21):** *Resolved (Accepted MVP baseline):* For the MVP, Raju's security baseline is defined as the current enforced rule set (CMEK encryption, `>= 90`-day retention, uniform bucket-level access, `public_access_prevention = "enforced"`, approved region `us-east1`, and mandatory labels); additional per-service Raju rules are deferred to Phase 6 (Owner: Raju's team / Norm).
 - [x] **OQ-3 (Cost Gate Thresholds — RESOLVED 2026-10-21):** *Resolved:* Active cost calculation and budget threshold gates are **out of scope for the MVP**; the MVP enforces the mandatory `cost_center` label only (`ADR-AUT-002 OQ-5`).
 
 ## Related ADRs

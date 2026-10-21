@@ -31,7 +31,7 @@ To avoid fragmenting the runtime stack across multiple backend languages and to 
 | **Temporal Workers & Runner Launcher (`ssp-workers`)** | Python `3.11+` | `temporalio` (Temporal Python SDK), `kubernetes` (official Python K8s client), `google-cloud-storage` | `pytest`, Temporal workflow replay tests, offline K8s Job spec tests |
 | **Portal & Chat Storefront (`ssp-ui`)** | TypeScript `5.x` (Node `20+`) | `React 18+`, `Vite`, `Tailwind CSS`, declarative catalog templates (Handlebars / JSON Schema form renderer) | `tsc --noEmit`, `vitest` / `playwright`, `eslint` |
 | **Resource Modules (`ssp-module-<type>`)** | HCL (Terraform `>= 1.10`) | Google Cloud provider (`hashicorp/google` / `hashicorp/google-beta`) | `terraform fmt -check`, `terraform validate`, `terraform test` (`mock_provider "google"`), `tfsec` |
-| **Policy & Governance Gates (`ssp-doc`, `ssp-cp`, `ssp-module-*`)** | Rego (`rego.v1`), JSON Schema | `OPA v0.69+`, `Conftest v0.56+`, `jsonschema` (Draft 2020-12) | `opa test -v`, `conftest test`, `lint_adrs.py` |
+| **Policy & Governance Gates (`ssp-doc`, `ssp-cp`, `ssp-module-*`)** | Rego (`rego.v1`), JSON Schema | `OPA v0.69+` (evaluated at runtime via OPA sidecar HTTP API `localhost:8181` in `ssp-cp`), `Conftest v0.56+`, `jsonschema` (Draft 2020-12) | `opa test -v`, `conftest test`, `lint_adrs.py` |
 
 ## Requirements
 
@@ -89,9 +89,9 @@ To avoid fragmenting the runtime stack across multiple backend languages and to 
 
 ## Open Questions
 
-- [ ] **OQ-1 (Legacy v0.1 Spec Cleanup):** Should the earlier v0.1 exploratory directories (`10-product/`, `40-repos/`) that referenced Go and Next.js be archived/removed in a follow-up cleanup PR once this prerequisite ADR PR is reviewed?
-- [ ] **OQ-2 (OPA Evaluation in Python):** Should `ssp-cp` evaluate Rego policies at runtime by invoking the `opa` binary / sidecar HTTP API (`localhost:8181`) or via an embedded WebAssembly/Python OPA bindings wrapper?
-- [ ] **OQ-3 (UI Template Engine):** For `ssp-ui`, confirm whether Handlebars templates (`*.hbs`) + JSON Schema (`ui.json`) is the final template format for the micro-frontend catalog renderer, and which top-5 UI prototypes from Dwayne's gallery are selected as the visual baseline.
+- [x] **OQ-1 (Legacy v0.1 Spec Cleanup — RESOLVED 2026-10-21):** *Resolved:* Archive/remove the earlier v0.1 exploratory directories (`00-constitution/`..`90-tasks/`) in a follow-up cleanup PR after this prerequisite ADR PR merges.
+- [x] **OQ-2 (OPA Evaluation in Python — RESOLVED 2026-10-21):** *Resolved:* `ssp-cp` evaluates Rego policies at runtime via an **OPA sidecar HTTP API (`localhost:8181`)**.
+- [x] **OQ-3 (UI Template Engine — DEFERRED TO PHASE 5 [Owner: Dwayne]):** *Deferred to Phase 5 (`ssp-ui`):* Final UI template format (Handlebars + JSON Schema) and top-5 prototype selection are deferred to Phase 5 under Dwayne.
 
 ## Related ADRs
 

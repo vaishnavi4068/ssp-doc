@@ -108,8 +108,8 @@ In the design discussion (`uploads/design-digest.md`), stakeholder clarification
 ## Open Questions
 
 - [x] **OQ-1 (Environment Classification & Runner SA Ownership in `microdrive-dev` — RESOLVED 2026-10-21):** *Resolved:* `microdrive-dev` (`md-dev`) is a **non-prod** environment, and the **SPP team** provides and owns the runner GCP Service Account (`<runner-sa>@microdrive-dev.iam.gserviceaccount.com`, `TODO: vaishnavi4068`). Future production cluster provisioning beyond `microdrive-dev` remains with Hurley when SPP moves to prod.
-- [ ] **OQ-2 (Temporal PostgreSQL High Availability & Backups):** What is the backup and PITR schedule for the PostgreSQL instance backing self-hosted Temporal in `spp-temporal`?
-- [ ] **OQ-3 (VPC & CIDR Allocation with John Simon):** How will `spp-platform` runner pods route to private endpoints in target 2.0 GCP service projects (Shared VPC / Private Service Connect / VPC peering coordinated with John Simon)?
+- [x] **OQ-2 (Temporal PostgreSQL High Availability & Backups — RESOLVED 2026-10-21):** *Resolved:* Configure **daily automated backups with 7-day retention** for the non-prod Temporal PostgreSQL instance in `spp-temporal`.
+- [x] **OQ-3 (VPC & CIDR Allocation with John Simon — DEFERRED TO PHASE 6 / MULTI-PROJECT [Owner: John Simon / Manoj]):** *Deferred to Phase 6 (Multi-Project Target Onboarding):* Cross-project private networking/VPC peering with John Simon is deferred until onboarding private-endpoint resources beyond `microdrive-dev`.
 
 ## Related ADRs
 

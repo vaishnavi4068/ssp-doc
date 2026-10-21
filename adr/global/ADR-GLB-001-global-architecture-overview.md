@@ -90,10 +90,10 @@ In the design discussion between Dwayne, Norm, and Manoj (`uploads/design-digest
 
 ## Open Questions
 
-- [ ] **OQ-1 (Terminology Alignment):** The design session transcript refers to SPP as a self-service provisioning control plane / "taxi" replacement rather than an "Internal Developer Portal (IDP)". Confirm whether "SPP Internal Developer Portal" is the official external branding for `ssp-ui` while `ssp-cp`/`ssp-workers` remain the Provisioning Control Plane.
-- [ ] **OQ-2 (Console Feature Parity):** Will SPP mirror legacy "console" features for firewall-rule request visibility, Kafka topic provisioning (shown at Saul's offsite), and F5 vs. cloud-native load balancers, or keep those in separate tools?
-- [ ] **OQ-3 (Post-Build Long-Term Ownership):** If the SPP team wraps existing team playbooks (~2-hour Ansible VM host-build playbook, Jenkins DBA jobs) into Temporal workflows for the POC, what is the formal SLA and handoff model for the owning domain teams to maintain those activities long term?
-- [ ] **OQ-4 (Legacy Import Shim):** What is the target architecture and timeline for the translation shim to import legacy 1.0 projects by CSP resource ID?
+- [x] **OQ-1 (Terminology Alignment — DEFERRED TO PHASE 5 [Owner: Dwayne]):** *Deferred to Phase 5 (`ssp-ui`):* External branding ("SPP Internal Developer Portal" vs. "Provisioning Control Plane") will be finalized with Dwayne when `ssp-ui` is built in Phase 5.
+- [x] **OQ-2 (Console Feature Parity — DEFERRED TO PHASE 6 [Owner: Norm]):** *Deferred to Phase 6 (More GCP Resource Types):* Parity for legacy "console" features (firewall-rule visibility, Kafka topics, F5 vs. cloud-native load balancers) is deferred to Phase 6 under Norm.
+- [x] **OQ-3 (Post-Build Long-Term Ownership — DEFERRED TO PHASE 6 [Owner: Norm / Karen]):** *Deferred to Phase 6 (VM & DB Modules):* Domain-team SLA and handoff for post-build Temporal activities (VM Ansible playbooks, DBA Jenkins jobs) are deferred to Phase 6 under Norm and Karen (not needed for the Phase 3–4 GCS slice).
+- [x] **OQ-4 (Legacy Import Shim — DEFERRED POST-MVP [Owner: Manoj / Dwayne]):** *Deferred post-MVP:* Legacy 1.0 project import via CSP resource IDs and translation shim is deferred post-MVP under Manoj and Dwayne.
 
 ## Related ADRs
 

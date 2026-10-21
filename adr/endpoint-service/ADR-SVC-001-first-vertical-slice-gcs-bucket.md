@@ -41,12 +41,13 @@ In the design discussion (`uploads/design-digest.md`) and build order (`ADR-BP-0
 - **REQ-1 (MUST):** The first vertical slice MUST operate end-to-end via the `ssp-cp` REST API (`POST /api/v1/requests`, `GET /api/v1/requests/{request_id}`) with **no UI dependency**.
 - **REQ-2 (MUST):** The GCS bucket Terraform module MUST enforce:
   1. `encryption.default_kms_key_name = var.cmek_key_id` (non-empty CMEK key reference in `us-east1`, placeholder `projects/microdrive-dev/locations/us-east1/keyRings/<TODO>/cryptoKeys/<TODO>`, owner: `vaishnavi4068`)
-  2. `retention_policy.retention_period >= 7776000` (`>= 90` days in seconds; proposed default `retention_policy.is_locked = false` in `dev`/`sandbox`—see `OQ-3`)
+  2. `retention_policy.retention_period >= 7776000` (`>= 90` days in seconds, with `retention_policy.is_locked = false` by default in `dev`/`sandbox` so non-prod buckets can be decommissioned cleanly when empty)
   3. `versioning.enabled = true`
   4. `uniform_bucket_level_access = true`
   5. `public_access_prevention = "enforced"`
   6. `force_destroy = false`
   7. Effective labels containing `apm_id`, `cost_center`, `environment`, `owner`, `data_classification`, and `managed_by = "spp"`
+  8. Audit logging via **GCP Cloud Audit Logs** (no separate `logging.log_bucket` required in MVP)
 - **REQ-3 (MUST):** The GCS bucket module MUST output `cloud_resource_id` (`google_storage_bucket.this.id` / `self_link`) and `bucket_name` so `Observed` state and drift detection match by immutable CSP resource ID (`ADR-AUT-002`).
 - **REQ-4 (MUST):** Both `Requested` and `Approved` payloads MUST contain zero secrets (`ADR-GLB-003`, `ADR-GLB-005`).
 - **REQ-5 (MUST):** All 7 stages of the factory verification gate (`gates/scripts/run_gate.sh`), including `terraform test` with `mock_provider "google"` and `tfsec`, MUST pass on the GCS bucket module.
@@ -97,9 +98,9 @@ In the design discussion (`uploads/design-digest.md`) and build order (`ADR-BP-0
 
 ## Open Questions
 
-- [x] **OQ-1 (CMEK Key URI in `microdrive-dev` — RESOLVED 2026-10-21):** *Resolved:* The user (`vaishnavi4068`) will create and provide the Cloud KMS key in `microdrive-dev` (`us-east1`). Placeholder (owner: `vaishnavi4068`): `projects/microdrive-dev/locations/us-east1/keyRings/<TODO>/cryptoKeys/<TODO>`.
-- [ ] **OQ-2 (Access Logging Bucket Requirement):** Does Raju's security baseline require every GCS bucket to configure a separate `logging.log_bucket` target in `main.tf`, or are GCP Cloud Audit Logs (Data Access logs) sufficient? *(Proposed default: Cloud Audit Logs only, no separate access-log bucket.)*
-- [ ] **OQ-3 (Retention Policy Lock):** Should `retention_policy.is_locked` default to `false` for `dev`/`sandbox` buckets (so test buckets can be decommissioned cleanly) and only allow `is_locked = true` via the `operations` persona? *(Proposed default: `is_locked = false` in `dev`/`sandbox`.)*
+- [x] **OQ-1 (CMEK Key URI in `microdrive-dev` — RESOLVED / USER-SUPPLIED `TODO: vaishnavi4068`):** *Resolved:* The user (`vaishnavi4068`) will create and provide the Cloud KMS key in `microdrive-dev` (`us-east1`). Placeholder (owner: `vaishnavi4068`): `projects/microdrive-dev/locations/us-east1/keyRings/<TODO>/cryptoKeys/<TODO>`.
+- [x] **OQ-2 (Access Logging Bucket Requirement — RESOLVED 2026-10-21):** *Resolved:* Use **GCP Cloud Audit Logs only** (no separate access-log bucket required for MVP).
+- [x] **OQ-3 (Retention Policy Lock — RESOLVED 2026-10-21):** *Resolved:* `retention_policy.is_locked` defaults to **`false` in `dev`/`sandbox`**; setting `is_locked = true` is restricted to the `operations` persona.
 
 ## Related ADRs
 

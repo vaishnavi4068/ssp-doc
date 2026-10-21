@@ -112,7 +112,7 @@ This document defines the repository topology for the **Self-Service Provisionin
 
 ---
 
-## 4. Open Questions on Repository Boundaries
+## 4. Resolved Repository Boundary Decisions
 
-- [ ] **OQ-1:** For the first vertical slice (GCS bucket end-to-end), will the GCS Terraform module live in a dedicated `ssp-module-gcs` repository (matching `ssp-module-spanner`), or initially inside `ssp-cp` / `spp-factory-foundation/templates/resource-repo` before splitting out?
-- [ ] **OQ-2:** Should per-service ADRs (GCS, Spanner, VM) authored in `ssp-cp` be mirrored or indexed in `ssp-doc/adr/INDEX.md` so the Factory Console ADR View displays a single unified catalog across both repos?
+- [x] **OQ-1 (GCS Module Location — RESOLVED 2026-10-21):** *Resolved:* For the first vertical slice, the GCS Terraform module follows the `ssp-module-<type>` pattern (`ssp-module-gcs` / `spp-factory-foundation/templates/resource-repo` golden path), while `ssp-workers` renders one composite root module per project (`ADR-GLB-003`).
+- [x] **OQ-2 (Cross-Repo ADR Indexing — RESOLVED 2026-10-21):** *Resolved:* `ssp-doc` holds prerequisite and cross-cutting architecture ADRs while `ssp-cp` holds per-service/component ADRs (GCS, Spanner, VM, API, DB migrations), and `factory-agent` checks out the required repos via the Factory GitHub App (`ADR-AUT-003`).

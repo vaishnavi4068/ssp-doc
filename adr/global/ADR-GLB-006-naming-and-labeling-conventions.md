@@ -52,7 +52,7 @@ In the design discussion (`uploads/design-digest.md`) and the factory gate (`spp
 - **REQ-2 (MUST):** Every Terraform module in `ssp-module-<type>` MUST merge `managed_by = "spp"` into the effective resource labels applied to the underlying GCP resource.
 - **REQ-3 (MUST):** `resource_name` MUST match `^gcp-[a-z0-9]+-(sandbox|dev|nonprod|prod)-[a-z0-9-]+$` and be between 3 and 63 characters until superseded by a resource-specific enterprise naming ADR.
 - **REQ-4 (MUST):** During `Requested -> Approved` enrichment, `ssp-cp` MUST normalize or auto-populate `labels.managed_by = "spp"` and verify that `labels.environment` matches the top-level `environment` attribute.
-- **REQ-5 (SHOULD):** When a user provides `apm_id` in the UI or API, `ssp-cp` SHOULD automatically populate or validate `cost_center`, `application_tier`, and default `data_classification` from the application portfolio metadata so developers do not have to enter redundant fields manually.
+- **REQ-5 (SHOULD):** In the MVP, the caller provides `apm_id`, `application_tier`, `cost_center`, and `owner` explicitly in the request payload (validated by schema and Rego); automated upstream portfolio lookup by `apm_id` is deferred post-MVP.
 
 ## Guardrails
 
@@ -101,8 +101,8 @@ In the design discussion (`uploads/design-digest.md`) and the factory gate (`spp
 
 ## Open Questions
 
-- [ ] **OQ-1 (Enterprise 2.0 Naming Standard):** What is the final enterprise naming convention per GCP resource type (e.g., character limits for Windows GCE VMs or globally unique GCS buckets) to replace or refine the placeholder regex `^gcp-<lob>-<env>-<name>$`?
-- [ ] **OQ-2 (Authoritative APM ID Lookup Source):** Which internal API or database table maps `APM-XXXX` (`apm_id`) to `application_tier`, `cost_center`, and `owner` during `Requested -> Approved` enrichment?
+- [x] **OQ-1 (Enterprise 2.0 Naming Standard — RESOLVED 2026-10-21):** *Resolved (Accepted MVP placeholder):* The naming regex `^gcp-[a-z0-9]+-(sandbox|dev|nonprod|prod)-[a-z0-9-]+$` is accepted for the MVP; per-resource enterprise naming refinements are deferred post-MVP (Owner: Manoj).
+- [x] **OQ-2 (Authoritative APM ID Lookup Source — RESOLVED 2026-10-21):** *Resolved (Accepted MVP placeholder):* `apm_id`, `application_tier`, `cost_center`, and `owner` are entered manually in the request payload for the MVP; automated portfolio API lookup is deferred post-MVP (Owner: Manoj).
 
 ## Related ADRs
 

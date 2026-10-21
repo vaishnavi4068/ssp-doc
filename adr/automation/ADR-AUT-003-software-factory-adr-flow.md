@@ -103,8 +103,8 @@ In the design discussion (`uploads/design-digest.md` §6) and the deployed `spp-
 
 ## Open Questions
 
-- [ ] **OQ-1 (Cross-Repo ADR Sync into `spp-factory-foundation`):** Notice from `uploads/design-digest.md` (§6 & §11): the 8 assembly-line stations (`impact -> plan -> build -> gate -> review -> approval -> merge -> reconcile`) were designed and implemented in `spp-factory-foundation` (`ADR-AUT-004`..`006`) rather than spoken verbatim in the raw transcript. Confirm whether `spp-factory-foundation` should mount `ssp-doc/adr/` via git submodule, multi-repo GitHub App checkout in `factory-agent`, or webhook sync so the Factory Console ADR View reflects `ssp-doc` PRs automatically.
-- [ ] **OQ-2 (GitHub App Installation Scope):** Once the Factory GitHub App is configured (`GITHUB_APP_ID`, `GITHUB_APP_INSTALLATION_ID`), confirm that its installation permissions cover `ssp-doc`, `ssp-cp`, `ssp-workers`, `ssp-ui`, and all `ssp-module-<type>` repositories.
+- [x] **OQ-1 (Cross-Repo ADR Sync into `spp-factory-foundation` — RESOLVED 2026-10-21):** *Resolved:* `factory-agent` performs a **multi-repo checkout via the Factory GitHub App** (checking out `ssp-doc`, `spp-factory-foundation`, and the target product repo for each station run).
+- [x] **OQ-2 (GitHub App Installation Scope — DEFERRED TO LIVE GITHUB APP CUTOVER [Owner: Manoj / `@vaishnavi4068`]):** *Deferred to live GitHub App cutover:* When switching `factory-agent` from `dry` mode to `live` mode, install the Factory GitHub App across `ssp-doc`, `ssp-cp`, `ssp-workers`, `ssp-ui`, and all `ssp-module-<type>` repositories.
 
 ## Related ADRs
 

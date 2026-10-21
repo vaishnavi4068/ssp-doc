@@ -35,10 +35,11 @@ During the architecture design session (`uploads/design-digest.md`), the team ev
    - **`Approved` (PostgreSQL):** The immutable, policy-enriched specification produced by `ssp-cp` after injecting mandatory guardrails (CMEK key reference, `retention_days >= 90`, `public_access_prevention = "enforced"`, Raju security baseline flags, APM ID tier defaults, standard resource naming, mandatory labels, and `operations_gate` approval, plus non-blocking post-MVP interface placeholder fields for ServiceNow/CMDB) and passing OPA validation. Contains **zero secrets**.
    - **`Expected` (GCS):** The desired deployed Terraform state written by the Kubernetes Job runner after `terraform apply`. May contain secrets injected post-approval during execution. Stored at `expected/<project-id>/terraform.tfstate`.
    - **`Observed` (GCS):** The actual cloud state captured by an independent scheduled (and post-apply) capture job that reads actual resource configuration directly from **GCP APIs keyed by immutable CSP resource ID (`cloud_resource_id`)** and writes to `observed/<project-id>/terraform.tfstate` for comparison against `Expected` (explicitly **not** `terraform plan -refresh-only`; on drift, the MVP is **alert-only** with no auto-remediation, per `ADR-AUT-002`).
-2. **State Granularity & Bucket Placement:**
-   - **One state file per 2.0 GCP project** (never per-resource or per-category).
+2. **State Granularity, Root Module Rendering & Bucket Placement:**
+   - **One state file per 2.0 GCP project** (never per-resource or per-category): `ssp-workers` renders **one composite root module per project** combining all approved resource instances for that project before launching the runner Job.
    - **Two folders per state bucket:** `expected/<project-id>/terraform.tfstate` and `observed/<project-id>/terraform.tfstate`.
-   - **Bucket topology:** In the `microdrive-dev` GCP environment (Phase 1 / first vertical slice), Terraform state is stored in `gs://microdrive-dev-spp-tfstate`. At enterprise scale across LOBs, state is stored in **one GCS bucket per LOB host project**.
+   - **Bucket topology:** For the MVP in `microdrive-dev`, Terraform state is stored in `gs://microdrive-dev-spp-tfstate`. At enterprise scale across LOBs, state is stored in **one GCS bucket per LOB host project**.
+   - **Post-Approval Secret Injection:** When a resource requires secrets injected after `Approved` state into `Expected`, secrets are fetched from **GCP Secret Manager**.
 
 ## Requirements
 
@@ -97,9 +98,9 @@ During the architecture design session (`uploads/design-digest.md`), the team ev
 
 ## Open Questions
 
-- [ ] **OQ-1 (`gs://microdrive-dev-spp-tfstate` vs. Per-LOB Buckets):** Confirm whether `gs://microdrive-dev-spp-tfstate` serves as the LOB state bucket for the `microdrive-dev` environment during Phases 1–4, and what naming convention (`gs://spp-tfstate-<lob>-<env>`) will be used when onboarding production GCP LOB host projects.
-- [ ] **OQ-2 (Root Module Composition per Project):** Since `Expected` state is one state file per project (`expected/<project-id>/terraform.tfstate`) while modules live in per-resource repos (`ssp-module-gcs`, `ssp-module-spanner`), confirm how `ssp-cp`/`ssp-workers` composes multiple resource instances of a project into the project's composite root `.tf.json` / `.tf` bundle before launching the K8s Job.
-- [ ] **OQ-3 (Post-Approval Secret Injection Source):** When a resource requires secrets injected after `Approved` state into `Expected`, confirm whether secrets are fetched from GCP Secret Manager or Akeyless (noted in the design session as hosted outside the cloud).
+- [x] **OQ-1 (`gs://microdrive-dev-spp-tfstate` vs. Per-LOB Buckets — RESOLVED 2026-10-21):** *Resolved:* Use `gs://microdrive-dev-spp-tfstate` for the `microdrive-dev` MVP; per-LOB bucket naming for production host projects is deferred post-MVP (Owner: Manoj).
+- [x] **OQ-2 (Root Module Composition per Project — RESOLVED 2026-10-21):** *Resolved:* `ssp-workers` renders **one composite Terraform root module per project** from the project's approved resource instances before launching `tf-op-<operation_id>`.
+- [x] **OQ-3 (Post-Approval Secret Injection Source — RESOLVED 2026-10-21):** *Resolved:* Post-approval secrets injected into `Expected` state are fetched from **GCP Secret Manager**.
 
 ## Related ADRs
 
