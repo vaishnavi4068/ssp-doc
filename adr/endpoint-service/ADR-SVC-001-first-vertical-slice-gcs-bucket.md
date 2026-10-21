@@ -30,7 +30,7 @@ In the design discussion (`uploads/design-digest.md`) and build order (`ADR-BP-0
      - `service_account_email` (the target project's dedicated provisioning SA)
      - `state_backend` (`bucket = "microdrive-dev-spp-tfstate"`, `expected_key = "expected/<project_id>/terraform.tfstate"`, `observed_key = "observed/<project_id>/terraform.tfstate"`)
      - `application_tier` (resolved from `apm_id`)
-     - `security` (`cmek_enabled = true`, `cmek_key_id`, `retention_days >= 90` [`retention_period >= 7776000` seconds], `public_access_prevention = "enforced"`, `raju_baseline_applied = true`, `uniform_bucket_level_access = true`, `versioning_enabled = true`)
+     - `security` (`cmek_enabled = true`, `cmek_key_id = "projects/microdrive-dev/locations/us-east1/keyRings/<TODO>/cryptoKeys/<TODO>"` [owner: `vaishnavi4068`], `retention_days >= 90` [`retention_period >= 7776000` seconds], `public_access_prevention = "enforced"`, `raju_baseline_applied = true`, `uniform_bucket_level_access = true`, `versioning_enabled = true`)
      - `operations_gate` (`approved = true`, `bypass_allowed = false`; ServiceNow and CMDB fields are populated only as static schema placeholders for `gates/schemas/resource-request.schema.json` compatibility—no external ServiceNow/CMDB calls or mock adapters are invoked in the `microdrive-dev` MVP)
      `ssp-cp` evaluates the OPA policy suite (`spp_gate.rego` + `gcs_bucket.rego`) and persists the immutable `Approved` record in PostgreSQL.
    - **Step 3 (`Expected`):** `ssp-cp` starts the provisioning workflow on the `platform` Temporal namespace (`temporal-frontend.spp-temporal.svc.cluster.local:7233`). `ssp-workers` launches deterministic Kubernetes Job `tf-op-<operation_id>` in namespace `spp-platform` (on node pool `spp-pool`), which runs `terraform init` and `terraform apply` against the GCS bucket module and writes `Expected` state to `gs://microdrive-dev-spp-tfstate/expected/<project_id>/terraform.tfstate`.
@@ -40,8 +40,8 @@ In the design discussion (`uploads/design-digest.md`) and build order (`ADR-BP-0
 
 - **REQ-1 (MUST):** The first vertical slice MUST operate end-to-end via the `ssp-cp` REST API (`POST /api/v1/requests`, `GET /api/v1/requests/{request_id}`) with **no UI dependency**.
 - **REQ-2 (MUST):** The GCS bucket Terraform module MUST enforce:
-  1. `encryption.default_kms_key_name = var.cmek_key_id` (non-empty CMEK key reference)
-  2. `retention_policy.retention_period >= 7776000` (`>= 90` days in seconds)
+  1. `encryption.default_kms_key_name = var.cmek_key_id` (non-empty CMEK key reference in `us-east1`, placeholder `projects/microdrive-dev/locations/us-east1/keyRings/<TODO>/cryptoKeys/<TODO>`, owner: `vaishnavi4068`)
+  2. `retention_policy.retention_period >= 7776000` (`>= 90` days in seconds; proposed default `retention_policy.is_locked = false` in `dev`/`sandbox`—see `OQ-3`)
   3. `versioning.enabled = true`
   4. `uniform_bucket_level_access = true`
   5. `public_access_prevention = "enforced"`
@@ -97,9 +97,9 @@ In the design discussion (`uploads/design-digest.md`) and build order (`ADR-BP-0
 
 ## Open Questions
 
-- [ ] **OQ-1 (CMEK Key URI in `microdrive-dev`):** What is the exact Cloud KMS key resource ID (`projects/microdrive-dev/locations/us-east1/keyRings/<ring>/cryptoKeys/<key>`) in `us-east1` to inject during `Approved` state enrichment for the first vertical slice in `microdrive-dev`?
-- [ ] **OQ-2 (Access Logging Bucket Requirement):** Does Raju's security baseline require every GCS bucket to configure a separate `logging.log_bucket` target in `main.tf`, or are GCP Cloud Audit Logs (Data Access logs) sufficient?
-- [ ] **OQ-3 (Retention Policy Lock):** Should `retention_policy.is_locked` default to `false` for `dev`/`sandbox` buckets (so test buckets can be decommissioned cleanly) and only allow `is_locked = true` via the `operations` persona?
+- [x] **OQ-1 (CMEK Key URI in `microdrive-dev` — RESOLVED 2026-10-21):** *Resolved:* The user (`vaishnavi4068`) will create and provide the Cloud KMS key in `microdrive-dev` (`us-east1`). Placeholder (owner: `vaishnavi4068`): `projects/microdrive-dev/locations/us-east1/keyRings/<TODO>/cryptoKeys/<TODO>`.
+- [ ] **OQ-2 (Access Logging Bucket Requirement):** Does Raju's security baseline require every GCS bucket to configure a separate `logging.log_bucket` target in `main.tf`, or are GCP Cloud Audit Logs (Data Access logs) sufficient? *(Proposed default: Cloud Audit Logs only, no separate access-log bucket.)*
+- [ ] **OQ-3 (Retention Policy Lock):** Should `retention_policy.is_locked` default to `false` for `dev`/`sandbox` buckets (so test buckets can be decommissioned cleanly) and only allow `is_locked = true` via the `operations` persona? *(Proposed default: `is_locked = false` in `dev`/`sandbox`.)*
 
 ## Related ADRs
 

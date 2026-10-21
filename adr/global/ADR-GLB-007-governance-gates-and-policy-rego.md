@@ -39,7 +39,7 @@ From the design discussion (`uploads/design-digest.md`) and `spp-factory-foundat
    - **Required Labels:** `apm_id`, `cost_center`, `environment`, `owner`, `data_classification` present and non-empty.
    - **Naming Convention:** `resource_name` matches `^gcp-[a-z0-9]+-(sandbox|dev|nonprod|prod)-[a-z0-9-]+$`.
    - **Approved GCP Regions:** `approved_regions.gcp = {"us-east1"}` (`us-east1` only for now).
-   - **`Approved`-State Security Baseline:** `security.cmek_enabled == true`, non-empty `security.cmek_key_id`, `security.retention_days >= 90`, `security.public_access_prevention == "enforced"`, `security.raju_baseline_applied == true`.
+   - **`Approved`-State Security Baseline:** `security.cmek_enabled == true`, non-empty `security.cmek_key_id` (using `projects/microdrive-dev/locations/us-east1/keyRings/<TODO>/cryptoKeys/<TODO>` in `microdrive-dev`, owner: `vaishnavi4068`, per `ADR-SVC-001`), `security.retention_days >= 90`, `security.public_access_prevention == "enforced"`, `security.raju_baseline_applied == true`.
    - **`Approved`-State Storage & Identity:** `state_backend.expected_key == "expected/<project_id>/terraform.tfstate"`, `state_backend.observed_key == "observed/<project_id>/terraform.tfstate"`, and `service_account_email` contains `project_id`.
    - **`Approved`-State Operations Gate:** `operations_gate.approved == true` and `operations_gate.bypass_allowed == false` (with `servicenow` and `cmdb` blocks carried only as static schema placeholders in the MVP; live ServiceNow/CMDB gating is deferred post-MVP per `ADR-BP-001`).
 
