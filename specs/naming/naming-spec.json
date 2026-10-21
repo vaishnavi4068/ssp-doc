@@ -10,6 +10,7 @@
     "overrides_applied": [
       "GCP only; region us-east1 only (no multi-region US buckets, no nam3 Spanner, no us-east4).",
       "Environments: only 'nonprod' and 'prod'; name token is 'nonprod' (no hyphen). sandbox, dev, qa, test, pdev, pqa, preprod all map to 'nonprod' everywhere.",
+      "Labels: 'environmentsubtype' label is DROPPED everywhere; 'environmenttype' is 'nonprod' | 'prod' (8 mandatory labels).",
       "Single state bucket: gs://microdrive-dev-spp-tfstate for now (no per-LOB state buckets).",
       "Kubernetes runner namespace: spp-platform (ADR-AUT-001, overriding idp-runners)."
     ]
@@ -187,7 +188,6 @@
       "sppappid",
       "costcenter",
       "environmenttype",
-      "environmentsubtype",
       "primarylob",
       "datasensitivity",
       "owner",

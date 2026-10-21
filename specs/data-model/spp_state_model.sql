@@ -256,7 +256,7 @@ CREATE TABLE idp.approval (
   decided_at           timestamptz,
   valid_until          timestamptz,
   created_at           timestamptz NOT NULL DEFAULT now(),
-  -- [Unverified (source gap): [NOT CAPTURED: source lines 250-258; tail of approval_spec_when_approved inferred below]]
+  -- [Unverified (source gap): [NOT CAPTURED in SQL lines 250-258; example rows in gcs_bucket.gates.json and spanner.gates.json confirm approval row carries approval_id, request_id, resource_id, gate_key, gate_version, status, approved_spec_sha256, guardrail_trace, temporal_workflow_id, decided_at, valid_until; exact CHECK expression below is inferred]]
   CONSTRAINT approval_spec_when_approved CHECK (
     status NOT IN ('APPROVED', 'AUTO_APPROVED')
     OR (approved_spec IS NOT NULL AND approved_spec_sha256 IS NOT NULL)
@@ -308,7 +308,7 @@ CREATE TABLE idp.expected_revision (
   manifest            jsonb NOT NULL,
   plan_uri            text,
   plan_summary        jsonb,
-  -- [Unverified (source gap): [NOT CAPTURED: source lines 302-309; status and blocked_reason reconstructed from examples, INV-4, and COMMENTs]]
+  -- [Unverified (source gap): [NOT CAPTURED in SQL lines 302-309; example rows in gcs_bucket.gates.json and spanner.gates.json confirm columns revision_id, state_unit_id, revision_no, parent_revision_no, artifact_uri, artifact_generation, status ('APPLIED'), plan_summary ({add,change,destroy,replace}); exact SQL types/CHECK constraints below are inferred]]
   status              text NOT NULL DEFAULT 'RENDERED'
                       CHECK (status IN ('RENDERED', 'PLANNED', 'BLOCKED', 'APPLYING', 'APPLIED', 'FAILED', 'SUPERSEDED')),
   blocked_reason      text,
@@ -360,7 +360,7 @@ CREATE TABLE idp.tf_operation (
   CONSTRAINT tf_operation_job_name_derived CHECK (k8s_job_name = idp.k8s_job_name(operation_id, phase)),
   CONSTRAINT tf_operation_job_name_len CHECK (length(k8s_job_name) <= 63)
 );
--- [Unverified (source gap): [NOT CAPTURED: source lines 356-362]]
+-- [Unverified (source gap): [NOT CAPTURED in SQL lines 356-362; example rows in gcs_bucket.gates.json confirm tf_operation tail columns tf_exit_code, state_serial_before, state_serial_after, state_lineage, logs_uri, started_at, finished_at and phases plan/apply/refresh_plan; index below is inferred]]
 CREATE INDEX tf_operation_state_unit_idx ON idp.tf_operation (state_unit_id, created_at DESC);
 
 -- ===== GATE 4: OBSERVED  (pointers + small projection) =====
@@ -405,7 +405,7 @@ CREATE TABLE idp.drift_finding (
   revision_id       uuid NOT NULL REFERENCES idp.expected_revision (revision_id),
   drift_kind        text NOT NULL
                     CHECK (drift_kind IN ('out_of_band_change', 'config_divergence', 'missing_in_cloud', 'unmanaged_in_cloud')),
-  -- [Unverified (source gap): [NOT CAPTURED: source lines 408-411; attribute_path, expected_value, observed_value, severity reconstructed from examples/spanner.gates.json]]
+  -- [Unverified (source gap): [NOT CAPTURED in SQL lines 408-411; example rows in gcs_bucket.gates.json and spanner.gates.json confirm columns drift_id, resource_id, observation_id, revision_id, drift_kind, attribute_path, expected_value, observed_value, severity, guardrail_rule_id, status, detected_at; exact SQL types/CHECK constraints below are inferred]]
   attribute_path    text NOT NULL,
   expected_value    jsonb,
   observed_value    jsonb,
@@ -617,7 +617,7 @@ INSERT INTO idp.resource_kind
   (kind, cloud, parent_kind, display_name, schema_uri, schema_version, tf_module_source,
    tfvars_collection, tf_address_template, opa_package, approval_gate_key, drift_ignore_paths, legacy_resource_type)
 VALUES
--- [Unverified (source gap): [lines 649-652 NOT CAPTURED: gcs_bucket row; visible tail was ARRAY['/force_destroy'], 'storage-bucket'); middle columns inferred from spanner_instance and resource-types.md]]
+-- [Unverified (source gap): [lines 649-652 NOT CAPTURED in SQL: gcs_bucket row; visible SQL tail was ARRAY['/force_destroy'], 'storage-bucket'), while examples/gcs_bucket.gates.json confirms tfvars_collection = 'gcs_buckets' and tf_address_template = 'module.gcs_bucket["{name}"]'; display_name, schema_uri, tf_module_source, and opa_package are inferred]]
 ('gcs_bucket', 'gcp', NULL, 'Cloud Storage bucket', 'schemas/gcs_bucket.schema.json', '1.0.0',
  'git::https://github.com/vaishnavi4068/ssp-module-gcs-bucket.git//modules/bucket?ref=v1.0.0',
  'gcs_buckets', 'module.gcs_bucket["{name}"]', 'idp.gcp.gcs_bucket', 'gcs_bucket_owner',

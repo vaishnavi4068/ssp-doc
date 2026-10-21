@@ -55,7 +55,7 @@ At the `Approved` gate, `ssp-cp` resolves `app_tier` from `metadata.apm_id` (`id
 | **`SPN-DEL-002`** | `spanner_database` | `approved` | `/spec/deletion_protection`, `/spec/enable_drop_protection` | `null` → `true` for both `deletion_protection` (Terraform-side delete guard) and `enable_drop_protection` (cloud drop protection). |
 | **`SPN-ENC-001`** | `spanner_database` | `approved` | `/spec/kms_key_names` (`encryption_config.kms_key_names`) | `null` → `["projects/<lob>-kms-<env>/locations/us-east1/keyRings/<lob>-<env>-use1/cryptoKeys/spanner-default"]` (CMEK key in `us-east1` matching `regional-us-east1`; in `microdrive-dev`, uses `projects/microdrive-dev/locations/us-east1/keyRings/<TODO>/cryptoKeys/<TODO>`). |
 | **`SPN-IAM-001`** | `spanner_instance` | `requested` / `approved` | `/spec/access` | **Denies** `roles/spanner.databaseReader` (or database-level data access roles) at the **instance** level on `shared` tenancy instances (allowed only on `dedicated` instances; instance-level access is for `roles/spanner.viewer` DBA groups). |
-| **`LBL-001` / `002`** | `spanner_instance` | `approved` | `/metadata/labels` | Merges and normalizes the 9 mandatory labels (`ADR-GLB-008`). |
+| **`LBL-001` / `002`** | `spanner_instance` | `approved` | `/metadata/labels` | Merges and normalizes the 8 mandatory labels (`ADR-GLB-008`). |
 | **`PRQ-003`** | `spanner_instance` | `approved` | `/prerequisites/0` | `enable_service` for `spanner.googleapis.com` on `<project_id>`. |
 | **`PRQ-004`** | `spanner_instance` | `approved` | `/prerequisites/1` | `vpc_sc_project_membership` verifying `<project_id>` is inside `<lob>_<env>_restricted_perimeter`. |
 
@@ -79,7 +79,6 @@ At the `Approved` gate, `ssp-cp` resolves `app_tier` from `metadata.apm_id` (`id
     "costcenter": "000000",
     "dataclassification": "proprietary",
     "datasensitivity": "restricted",
-    "environmentsubtype": "nonprod",
     "environmenttype": "nonprod",
     "idp_resource_id": "3936dbd5-d13d-5d84-ad7a-a1e3a595f213",
     "owner": "data_owner_example_com",
