@@ -16,16 +16,16 @@ Define the GCP runtime platform architecture hosting both the AI Software Factor
 
 In the design discussion (`uploads/design-digest.md`) and the live deployment of `spp-factory-foundation` (`docs/factory/runbook.md`, `ADR-AUT-004`, `ADR-AUT-005`):
 
-1. **GCP as Control Plane and Target Cloud:** The team chose **GCP** for the control plane, centralized PostgreSQL, self-hosted Temporal, Kubernetes Job Terraform runners, and 2.0 target workloads.
+1. **GCP as Control Plane and Target Cloud:** The team chose **GCP** (`microdrive-dev`) for the control plane, dedicated **AlloyDB for PostgreSQL** product database (`spp_platform`), self-hosted Temporal, Kubernetes Job Terraform runners, and 2.0 target workloads.
 2. **Self-Hosted Temporal Instead of Shared DevX Temporal:** Although Mitch had negotiated access to DevX's shared Temporal instance, the team decided to **run their own dedicated self-hosted Temporal cluster** inside their own GKE environment to preserve operational isolation, control worker/runner networking, and keep the new project low-profile.
-3. **Runtime Cluster & Node Isolation (`md-dev` in `microdrive-dev`):**
+3. **Runtime Cluster, Node & Database Isolation (`md-dev` in `microdrive-dev`):**
    - **GCP Project & Region:** `microdrive-dev` (`us-east1`).
    - **GKE Cluster:** `md-dev` (private nodes).
    - **Dedicated Tainted Node Pool (`spp-pool`):** All SPP and factory workloads schedule onto `spp-pool` using `nodeSelector: workload=spp` and toleration `dedicated=spp:NoSchedule` so SPP workloads never contend with or spill onto non-SPP cluster nodes.
-   - **Three Kubernetes Namespaces:**
-     1. `spp-temporal`: Hosts the self-hosted Temporal 1.32 server (`temporal-frontend.spp-temporal.svc.cluster.local:7233`) backed by PostgreSQL.
-     2. `spp-factory`: Hosts the AI Software Factory (`factory-console`, `factory-api`, `factory-worker`, and sandboxed `factory-wi-<id>-<station>` coding-agent Jobs).
-     3. `spp-platform`: Hosts the SPP runtime product (`ssp-cp`, `ssp-workers`, `ssp-ui`, and deterministic `tf-op-<operation_id>` Terraform runner Kubernetes Jobs).
+   - **Three Kubernetes Namespaces & Database Separation:**
+     1. `spp-temporal`: Hosts the self-hosted Temporal 1.32 server (`temporal-frontend.spp-temporal.svc.cluster.local:7233`) backed by its in-cluster PostgreSQL instance.
+     2. `spp-factory`: Hosts the AI Software Factory (`factory-console`, `factory-api`, `factory-worker`, sandboxed `factory-wi-<id>-<station>` coding-agent Jobs, and the factory's own in-cluster PostgreSQL, which stays as-is).
+     3. `spp-platform`: Hosts the SPP runtime product (`ssp-cp`, `ssp-workers`, `ssp-ui`, and deterministic `tf-op-<operation_id>` Terraform runner Kubernetes Jobs). `ssp-cp` connects over private IP / Private Services Access (PSA) to a **dedicated AlloyDB for PostgreSQL cluster/instance** (`spp_platform` database in `microdrive-dev`, `ADR-GLB-004`)—not Cloud SQL, not in-cluster Postgres on `md-dev`, and not a StatefulSet.
    - **Two Isolated Temporal Namespaces:**
      1. `factory` (task queue `factory`): Used exclusively by `spp-factory` (`factory-api` and `factory-worker`) to orchestrate `WorkItemWorkflow` across the 8 factory stations.
      2. `platform` (task queue `platform`): Used exclusively by `ssp-platform` (`ssp-cp` and `ssp-workers`) to orchestrate runtime resource provisioning (`Approved -> Expected -> Observed`), post-build bootstrap, and Day-2 workflows.
@@ -41,7 +41,7 @@ In the design discussion (`uploads/design-digest.md`) and the live deployment of
 2. **Kubernetes Namespace & Network Isolation:**
    - `spp-temporal`: Self-hosted Temporal server (`temporal-frontend.spp-temporal.svc.cluster.local:7233`) + Temporal PostgreSQL persistence. Allows gRPC ingress on port `7233` from `spp-factory` and `spp-platform`.
    - `spp-factory`: Dark Factory console, API, worker, and coding-agent Jobs. Enforces Kubernetes `NetworkPolicy` default-deny ingress and explicitly blocks all direct pod-to-pod traffic between `spp-factory` and `spp-platform`.
-   - `spp-platform`: SPP Control Plane API (`ssp-cp`), SPP Temporal workers (`ssp-workers`), SPP Portal (`ssp-ui`), and per-run Terraform Kubernetes Jobs (`tf-op-<operation_id>`).
+   - `spp-platform`: SPP Control Plane API (`ssp-cp`, connected via private IP/PSA and Workload Identity IAM auth to the dedicated AlloyDB for PostgreSQL `spp_platform` database in `microdrive-dev`), SPP Temporal workers (`ssp-workers`), SPP Portal (`ssp-ui`), and per-run Terraform Kubernetes Jobs (`tf-op-<operation_id>`).
 3. **Temporal Namespace Isolation:**
    - Temporal server in `spp-temporal` hosts two logical namespaces:
      - `factory` — consumed only by workloads in K8s namespace `spp-factory`.

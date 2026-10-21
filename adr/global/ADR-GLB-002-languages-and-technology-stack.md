@@ -27,7 +27,7 @@ To avoid fragmenting the runtime stack across multiple backend languages and to 
 
 | Layer / Repository | Language & Runtime | Primary Frameworks & Libraries | Verification & Lint Tooling |
 | :--- | :--- | :--- | :--- |
-| **Control Plane API (`ssp-cp`)** | Python `3.11+` | `FastAPI`, `Pydantic v2`, `SQLAlchemy 2.x`, `Alembic`, `psycopg` (PostgreSQL), `argon2-cffi`, `httpx` | `pytest`, `ruff` / `flake8`, `mypy`, `validate_schema.py` |
+| **Control Plane API (`ssp-cp`)** | Python `3.11+` | `FastAPI`, `Pydantic v2`, `SQLAlchemy 2.x`, `Alembic`, `psycopg` / `google-cloud-alloydb-connector` (AlloyDB for PostgreSQL), `argon2-cffi`, `httpx` | `pytest`, `ruff` / `flake8`, `mypy`, `validate_schema.py` |
 | **Temporal Workers & Runner Launcher (`ssp-workers`)** | Python `3.11+` | `temporalio` (Temporal Python SDK), `kubernetes` (official Python K8s client), `google-cloud-storage` | `pytest`, Temporal workflow replay tests, offline K8s Job spec tests |
 | **Portal & Chat Storefront (`ssp-ui`)** | TypeScript `5.x` (Node `20+`) | `React 18+`, `Vite`, `Tailwind CSS`, declarative catalog templates (Handlebars / JSON Schema form renderer) | `tsc --noEmit`, `vitest` / `playwright`, `eslint` |
 | **Resource Modules (`ssp-module-<type>`)** | HCL (Terraform `>= 1.10`) | Google Cloud provider (`hashicorp/google` / `hashicorp/google-beta`) | `terraform fmt -check`, `terraform validate`, `terraform test` (`mock_provider "google"`), `tfsec` |

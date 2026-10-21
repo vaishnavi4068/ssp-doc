@@ -28,7 +28,7 @@ Every ADR in `ssp-doc` requires a tracked owner consisting of **both** a shared 
 | **ADR-GLB-001** | `global` | Global Architecture Overview | Manoj | `spp-architecture@tbd` | Manoj, Dwayne, Norm | Proposed (Unsigned) |
 | **ADR-GLB-002** | `global` | Languages and Technology Stack | Manoj | `spp-architecture@tbd` | Manoj, Dwayne, Norm | Proposed (Unsigned) |
 | **ADR-GLB-003** | `global` | Four-State Provisioning Model and Storage Layout | Manoj | `spp-architecture@tbd` | Manoj, Dwayne, Norm | Proposed (Unsigned) |
-| **ADR-GLB-004** | `global` | Data Model and Centralized PostgreSQL Database | Manoj | `spp-architecture@tbd` | Manoj, Dwayne, Norm, Karen | Proposed (Unsigned) |
+| **ADR-GLB-004** | `global` | Data Model and Centralized PostgreSQL Database (AlloyDB for PostgreSQL) | Manoj | `spp-architecture@tbd` | Manoj, Dwayne, Norm, Karen | Proposed (Unsigned) |
 | **ADR-GLB-005** | `global` | Identity, Workload Identity, and Authentication | Manoj | `spp-security@tbd` | Manoj, Dwayne, Norm, Raju, Hurley | Proposed (Unsigned) |
 | **ADR-GLB-006** | `global` | Naming and Labeling Conventions | Manoj | `spp-architecture@tbd` | Manoj, Dwayne, Norm | Proposed (Unsigned) |
 | **ADR-GLB-007** | `global` | Governance Gates and Policy (Rego) | Manoj | `spp-policy@tbd` | Manoj, Dwayne, Norm, Raju, Allen/Karen | Proposed (Unsigned) |

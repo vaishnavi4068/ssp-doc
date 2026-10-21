@@ -24,7 +24,7 @@ In the design discussion (`uploads/design-digest.md`) and factory runtime deploy
 ## Decision
 
 1. **Pod-to-Cloud Identity (GKE Workload Identity, Zero Keys):**
-   - Every GKE pod in `spp-platform` and `spp-factory` authenticates via GKE Workload Identity (`microdrive-dev.svc.id.goog`).
+   - Every GKE pod in `spp-platform` and `spp-factory` authenticates via GKE Workload Identity (`microdrive-dev.svc.id.goog`), including IAM database authentication (`roles/alloydb.client` + `roles/alloydb.databaseUser`) from `ssp-cp` pods in `spp-platform` to the dedicated AlloyDB for PostgreSQL cluster (`spp_platform` database, `ADR-GLB-004`).
    - Long-lived GCP service account JSON keys are prohibited in code, images, ConfigMaps, K8s Secrets, and Terraform state.
 2. **Provisioning Blast-Radius Model (1 SA per Project + Platform SA Kill Button):**
    - Each 2.0 target GCP project has a dedicated service account (e.g., `spp-provisioner@<target-project-id>.iam.gserviceaccount.com`).
