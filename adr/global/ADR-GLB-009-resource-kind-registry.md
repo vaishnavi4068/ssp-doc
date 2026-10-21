@@ -67,7 +67,7 @@ CREATE TABLE idp.resource_kind (
 | **`schema_version`** | `1.0.0` | `1.0.0` | `1.0.0` |
 | **`tf_module_source`** | `git::https://github.com/vaishnavi4068/ssp-module-gcs-bucket.git//modules/bucket?ref=v1.0.0` *(Unverified: source had `git::https://github.com/<org>/tf-gcp-gcs-bucket.git...` `[NOT CAPTURED]`)* | `git::https://github.com/vaishnavi4068/ssp-module-spanner.git//modules/instance?ref=v1.0.0` *(source: `tf-gcp-spanner.git//modules/instance?ref=v1.0.0`)* | `git::https://github.com/vaishnavi4068/ssp-module-spanner.git//modules/database?ref=v1.0.0` *(source: `tf-gcp-spanner.git//modules/database?ref=v1.0.0`)* |
 | **`tfvars_collection`** | `gcs_buckets` | `spanner_instances` | `spanner_databases` |
-| **`tf_address_template`** | `module.gcs_bucket["{name}"]` *(Unverified: inferred)* | `module.spanner_instance["{name}"]` | `module.spanner_database["{instance}/{name}"]` |
+| **`tf_address_template`** | `module.gcs_bucket["{name}"]` *(Confirmed by `examples/gcs_bucket.gates.json`)* | `module.spanner_instance["{name}"]` | `module.spanner_database["{instance}/{name}"]` |
 | **`opa_package`** | `idp.gcp.gcs_bucket` *(Unverified: inferred)* | `idp.gcp.spanner_instance` | `idp.gcp.spanner_database` |
 | **`approval_gate_key`** | `gcs_bucket_owner` | `spanner_data_owner` | `spanner_data_owner` |
 | **`drift_ignore_paths`** | `ARRAY['/force_destroy']` | `ARRAY['/force_destroy']` | `ARRAY['/ddl', '/deletion_protection']` |
@@ -132,7 +132,7 @@ CREATE TABLE idp.resource_kind (
 ## Open Questions
 
 - [ ] **OQ-1 (Unverified Source Gaps in `gcs_bucket` Kind Seed & `examples/resource_kinds.json` — SOURCE GAP [Owner: Manoj]):** **Unverified (source gap):**
-  1. `idp_state_model.sql` lines 649–652 (`gcs_bucket` seed row) had its middle columns cut off in the photo (`tf_address_template`, `opa_package`, `tf_module_source`, `display_name`, `schema_uri` are inferred from `spanner_instance` and `resource-types.md`).
+  1. `idp_state_model.sql` lines 649–652 (`gcs_bucket` seed row) had its middle columns cut off in the photo (`tfvars_collection = 'gcs_buckets'` and `tf_address_template = 'module.gcs_bucket["{name}"]'` are now confirmed by `examples/gcs_bucket.gates.json`; `opa_package`, `tf_module_source`, `display_name`, and `schema_uri` remain inferred from `spanner_instance` and `resource-types.md`).
   2. `examples/resource_kinds.json` was listed in the source package file tree (photo 6548) as "kind registry mirroring `resource_kind` seed rows" but was `[NOT CAPTURED]` in the photos.
 
 ## Related ADRs

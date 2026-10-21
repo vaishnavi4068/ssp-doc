@@ -75,6 +75,7 @@ SPP is built, verified, and governed by an **AI Software Factory ("Dark Factory"
 │   ├── naming/
 │   │   └── naming-spec.json                                           # Reconstructed naming & label normalization spec
 │   └── examples/
+│       ├── gcs_bucket.gates.json                                      # Reconstructed GCS bucket 4-gate & critical PAP drift walkthrough
 │       └── spanner.gates.json                                         # Reconstructed Spanner 4-gate & drift walkthrough
 └── adr/                                                               # Organised by the 5 ADR levels used in spp-factory-foundation
     ├── INDEX.md                                                       # Master catalog of all 18 prerequisite ADRs
