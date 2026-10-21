@@ -23,8 +23,8 @@ From the design digest (`uploads/design-digest.md`), stakeholder resolution of `
 
 ## Decision
 
-1. **Dedicated AlloyDB for PostgreSQL Hosting (`microdrive-dev`):**
-   - **Service:** Dedicated **Google Cloud AlloyDB for PostgreSQL** cluster and primary instance in GCP project `microdrive-dev` hosting logical database `spp_platform`.
+1. **Dedicated AlloyDB for PostgreSQL Hosting (`microdrive-dev` in `us-east1`):**
+   - **Service:** Dedicated **Google Cloud AlloyDB for PostgreSQL** cluster and primary instance in GCP project `microdrive-dev` in region **`us-east1`** hosting logical database `spp_platform`.
    - **What Is Excluded:** Do **not** use Cloud SQL, do **not** share the in-cluster PostgreSQL instances in `spp-temporal` or `spp-factory` on GKE `md-dev`, and do **not** deploy a PostgreSQL StatefulSet inside `spp-platform`. (The factory's own PostgreSQL in `spp-factory` and Temporal's PostgreSQL in `spp-temporal` remain unchanged.)
    - **Network Connectivity:** Private IP connectivity only (no public IP) from GKE cluster `md-dev` (`spp-platform` namespace) via Private Services Access (PSA) / Direct VPC egress or AlloyDB Auth Proxy.
    - **Database Authentication:** Authenticate `ssp-cp` pods in `spp-platform` to AlloyDB using **IAM database authentication (`alloydb.databaseUser` + `alloydb.client`) bound via GKE Workload Identity (`microdrive-dev.svc.id.goog`)** wherever supported (with Secret Manager CSI-mounted credentials only if required for specific migration/bootstrap tooling—never static credentials in git or ConfigMaps).
@@ -41,7 +41,7 @@ From the design digest (`uploads/design-digest.md`), stakeholder resolution of `
 
 ## Requirements
 
-- **REQ-1 (MUST):** The SPP control plane (`ssp-cp`) MUST persist all runtime `Requested` and `Approved` state data in a dedicated **AlloyDB for PostgreSQL** cluster/instance (database `spp_platform`) in GCP project `microdrive-dev`, connected via private IP / Private Services Access (PSA) from GKE cluster `md-dev`.
+- **REQ-1 (MUST):** The SPP control plane (`ssp-cp`) MUST persist all runtime `Requested` and `Approved` state data in a dedicated **AlloyDB for PostgreSQL** cluster/instance (database `spp_platform`, region `us-east1`) in GCP project `microdrive-dev`, connected via private IP / Private Services Access (PSA) from GKE cluster `md-dev`.
 - **REQ-2 (MUST):** `ssp-cp` MUST manage all `spp_platform` schema changes through versioned, repeatable **Alembic** database migrations stored in `ssp-cp`, and SHOULD authenticate to AlloyDB using GKE Workload Identity + AlloyDB IAM authentication where possible.
 - **REQ-3 (MUST):** Every write to `provisioning_requests.requested_payload` and `approved_specs.approved_payload` MUST be validated against the canonical SPP JSON Schema and scanned to guarantee zero secret keys or values prior to `COMMIT`.
 - **REQ-4 (MUST):** `provisioning_requests` MUST enforce client-supplied `idempotency_key` uniqueness so retried API calls return the existing `request_id` rather than creating duplicate requests.
@@ -101,7 +101,7 @@ From the design digest (`uploads/design-digest.md`), stakeholder resolution of `
 - [x] **OQ-1 (PostgreSQL Hosting Offering in GCP — RESOLVED 2026-10-21):** *Resolved:* The SPP product database is **AlloyDB for PostgreSQL** in GCP (project `microdrive-dev`), not Cloud SQL.
 - [x] **OQ-2 (Shared vs. Separate PostgreSQL Instance on `md-dev` — RESOLVED 2026-10-21):** *Resolved:* SPP uses a **dedicated AlloyDB cluster/instance** (database `spp_platform`) for the product—not the in-cluster Postgres on `md-dev` and not a GKE StatefulSet. The factory's own Postgres in `spp-factory` stays as-is.
 - [ ] **OQ-3 (Retention & Archival of Audit Logs):** What is the required retention period in AlloyDB (`spp_platform`) vs. archival to GCS/BigQuery for `audit_logs` and historical `provisioning_operations` (e.g., 90 days hot in AlloyDB, 7 years in cold storage)?
-- [ ] **OQ-4 (AlloyDB Cluster Sizing, Region & HA Topology in `microdrive-dev`):** Should the `microdrive-dev` AlloyDB cluster be provisioned in `us-east1` (co-located with GKE cluster `md-dev` for lowest latency) with a single `BASIC` primary instance for dev/POC (`2 vCPU` / `16 GB`) or a `REGIONAL` high-availability primary + read pool?
+- [ ] **OQ-4 (AlloyDB Cluster Sizing & HA Topology in `microdrive-dev` / `us-east1`):** In region `us-east1` (the sole approved GCP region, co-located with GKE cluster `md-dev`), should the `microdrive-dev` AlloyDB cluster use a single `BASIC` primary instance for non-prod/POC (`2 vCPU` / `16 GB`) or a `REGIONAL` high-availability primary + read pool?
 - [ ] **OQ-5 (AlloyDB Automated Backups, PITR & CMEK Key):** To satisfy Karen's DBA requirements and `ADR-GLB-007` (`>= 90`-day retention + CMEK), what is the exact Cloud KMS CryptoKey URI (`cmek_key_id`) and continuous backup / Point-in-Time Recovery (PITR) window to configure on the AlloyDB cluster and backup plan?
 - [ ] **OQ-6 (Who Provisions the AlloyDB Cluster & PSA Peering):** Will the SPP team provision the dedicated AlloyDB cluster, Private Services Access (PSA) IP range (coordinated with John Simon), and `roles/alloydb.client` + `roles/alloydb.databaseUser` IAM bindings for the `ssp-cp` Workload Identity GSA in `microdrive-dev` via a dedicated foundation Terraform step before Phase 2 (`ssp-cp` skeleton deployment)?
 

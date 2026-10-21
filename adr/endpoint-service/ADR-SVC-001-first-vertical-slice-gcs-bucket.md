@@ -24,7 +24,7 @@ In the design discussion (`uploads/design-digest.md`) and build order (`ADR-BP-0
 ## Decision
 
 1. **Headless API-to-Cloud Flow for the First Vertical Slice:**
-   - **Step 1 (`Requested`):** Authenticated caller invokes `POST /api/v1/requests` on `ssp-cp` with a minimal GCS bucket payload (`cloud = "gcp"`, `layout_version = "2.0"`, `lob`, `project_id`, `resource_type = "google_storage_bucket"`, `resource_name`, `region`, `apm_id`, `environment`, `labels`, and optional `parameters` such as `storage_class`). `ssp-cp` validates the JSON Schema, checks zero secrets, and synchronously writes the `Requested` row to PostgreSQL without calling Temporal.
+   - **Step 1 (`Requested`):** Authenticated caller invokes `POST /api/v1/requests` on `ssp-cp` with a minimal GCS bucket payload (`cloud = "gcp"`, `layout_version = "2.0"`, `lob`, `project_id`, `resource_type = "google_storage_bucket"`, `resource_name`, `region = "us-east1"`, `apm_id`, `environment`, `labels`, and optional `parameters` such as `storage_class`). `ssp-cp` validates the JSON Schema, checks zero secrets, and synchronously writes the `Requested` row to PostgreSQL without calling Temporal.
    - **Step 2 (`Approved`):** `ssp-cp` enriches the request into an `Approved` specification by injecting:
      - `operation_id` (`op-<ulid>`)
      - `service_account_email` (the target project's dedicated provisioning SA)
@@ -79,7 +79,7 @@ In the design discussion (`uploads/design-digest.md`) and build order (`ADR-BP-0
 ## Success Criteria
 
 - **SC-1:**
-  - **Given** a minimal `Requested` JSON payload for a GCS bucket (`storage_class = "STANDARD"`, `region = "us-east4"`) submitted to `POST /api/v1/requests`
+  - **Given** a minimal `Requested` JSON payload for a GCS bucket (`storage_class = "STANDARD"`, `region = "us-east1"`) submitted to `POST /api/v1/requests`
   - **When** `ssp-cp` and `ssp-workers` process the request
   - **Then** `ssp-cp` writes `Requested` and enriched `Approved` records in PostgreSQL, `ssp-workers` runs K8s Job `tf-op-<operation_id>` in `spp-platform`, the GCS bucket is created with CMEK and `>= 90`-day retention, and state files exist under `expected/` and `observed/` in `gs://microdrive-dev-spp-tfstate`.
 - **SC-2:**
@@ -99,7 +99,7 @@ In the design discussion (`uploads/design-digest.md`) and build order (`ADR-BP-0
 
 ## Open Questions
 
-- [ ] **OQ-1 (CMEK Key URI in `microdrive-dev`):** What is the exact Cloud KMS key resource ID (`projects/microdrive-dev/locations/<region>/keyRings/<ring>/cryptoKeys/<key>`) to inject during `Approved` state enrichment for the first vertical slice in `microdrive-dev`?
+- [ ] **OQ-1 (CMEK Key URI in `microdrive-dev`):** What is the exact Cloud KMS key resource ID (`projects/microdrive-dev/locations/us-east1/keyRings/<ring>/cryptoKeys/<key>`) in `us-east1` to inject during `Approved` state enrichment for the first vertical slice in `microdrive-dev`?
 - [ ] **OQ-2 (Access Logging Bucket Requirement):** Does Raju's security baseline require every GCS bucket to configure a separate `logging.log_bucket` target in `main.tf`, or are GCP Cloud Audit Logs (Data Access logs) sufficient?
 - [ ] **OQ-3 (Retention Policy Lock):** Should `retention_policy.is_locked` default to `false` for `dev`/`sandbox` buckets (so test buckets can be decommissioned cleanly) and only allow `is_locked = true` via the `operations` persona?
 

@@ -38,7 +38,7 @@ From the design discussion (`uploads/design-digest.md`) and `spp-factory-foundat
    - **Zero Secrets:** Reject any key matching `password`, `passwd`, `secret`, `private_key`, `api_key`, `apikey`, `access_token`, `auth_token`, `bearer_token`, `client_secret`, `connection_string`, `credentials`, or values matching private key / token / credential regexes.
    - **Required Labels:** `apm_id`, `cost_center`, `environment`, `owner`, `data_classification` present and non-empty.
    - **Naming Convention:** `resource_name` matches `^gcp-[a-z0-9]+-(sandbox|dev|nonprod|prod)-[a-z0-9-]+$`.
-   - **Approved GCP Regions:** `{"us-east4", "us-central1"}` (plus `us-east1` where approved for `microdrive-dev` runtime/lab—see `OQ-1`).
+   - **Approved GCP Regions:** `approved_regions.gcp = {"us-east1"}` (`us-east1` only for now).
    - **`Approved`-State Security Baseline:** `security.cmek_enabled == true`, non-empty `security.cmek_key_id`, `security.retention_days >= 90`, `security.public_access_prevention == "enforced"`, `security.raju_baseline_applied == true`.
    - **`Approved`-State Storage & Identity:** `state_backend.expected_key == "expected/<project_id>/terraform.tfstate"`, `state_backend.observed_key == "observed/<project_id>/terraform.tfstate"`, and `service_account_email` contains `project_id`.
    - **`Approved`-State Operations & ITSM Gate:** `servicenow.record_id` matches `^REQ[0-9]{7,10}$`; for `environment == "prod"`, `servicenow.change_request_id` matches `^CHG[0-9]{7,10}$`; `cmdb.registration_required == true` and `cmdb.ci_class` non-empty; `operations_gate.approved == true` and `operations_gate.bypass_allowed == false`.
@@ -100,7 +100,7 @@ From the design discussion (`uploads/design-digest.md`) and `spp-factory-foundat
 
 ## Open Questions
 
-- [ ] **OQ-1 (`us-east1` in Approved GCP Regions):** The runtime cluster `md-dev` in `microdrive-dev` runs in `us-east1`, while `gates/policies/spp_gate.rego` currently lists `{"us-east4", "us-central1"}` as approved GCP target regions. Confirm whether `us-east1` should be added to `approved_regions.gcp` for `microdrive-dev` vertical slice testing, or if the first vertical slice GCS bucket in `microdrive-dev` will be provisioned in `us-east4` / `us-central1`.
+- [x] **OQ-1 (Approved GCP Regions — RESOLVED 2026-10-21):** *Resolved:* `approved_regions.gcp` is **`{"us-east1"}` only** for now (replacing `us-east4` and `us-central1`).
 - [ ] **OQ-2 (Complete Raju Security Rule Catalog):** Has Raju's team provided the exhaustive list of resource-specific compliance rules beyond CMEK, `>= 90`-day retention, uniform bucket-level access, and public access prevention?
 - [ ] **OQ-3 (Cost Gate Thresholds):** Should OPA enforce a hard or soft budget threshold gate on estimated monthly spend in `Approved` state, or is cost governance limited to the `cost_center` label and Day-2 cost reporting (`ADR-AUT-002`)?
 

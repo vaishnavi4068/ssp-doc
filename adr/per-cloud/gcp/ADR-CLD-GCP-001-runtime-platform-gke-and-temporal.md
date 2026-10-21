@@ -48,7 +48,7 @@ In the design discussion (`uploads/design-digest.md`), stakeholder clarification
      - `factory` — consumed only by workloads in K8s namespace `spp-factory`.
      - `platform` — consumed only by workloads in K8s namespace `spp-platform`.
 4. **GCP 2.0 Target Cloud Architecture:**
-   - Target GCP workloads follow the **2.0 folder and host-project/service-project layout** (one `apm_id` per service project).
+   - Target GCP workloads follow the **2.0 folder and host-project/service-project layout** (one `apm_id` per service project) in approved region **`us-east1` only** (`ADR-GLB-007`).
    - Each GCP service project has one dedicated provisioning service account impersonated by `<runner-sa>@microdrive-dev.iam.gserviceaccount.com` (`ADR-GLB-005`) and one Terraform state file per project (`expected/<project-id>/terraform.tfstate` and `observed/<project-id>/terraform.tfstate`).
    - Only BigQuery datasets (never individual BigQuery tables) are managed in Terraform state.
 
