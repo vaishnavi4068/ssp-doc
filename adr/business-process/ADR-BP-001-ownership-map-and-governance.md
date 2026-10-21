@@ -36,7 +36,7 @@ Across the enterprise, specific integration domains and platform approvals are o
    | **Executive Sponsor / Database Strategy** | **Saul** | `spp-leadership@tbd` | Executive sponsorship and database hosting direction |
 
 2. **ADR Ownership & Sign-Off Rule:**
-   - Every ADR in `ssp-doc` (and per-service ADR in `ssp-cp`) MUST specify both a `Shared Mailbox:` and a `Named Owner:` in its `- **Owner:**` metadata field.
+   - Every ADR in `ssp-doc` (and per-service ADR in `ssp-cp`) MUST specify both a `Shared Mailbox:` and a `Named Owner:` in its `- **Owner:**` metadata field (`*@tbd` shared mailboxes and `@manoj-todo`, `@dwayne-todo`, `@norm-todo` GitHub handles are accepted placeholders for the `microdrive-dev` MVP and will be replaced before production, while `@vaishnavi4068` is listed on every `CODEOWNERS` path so reviews route cleanly).
    - All newly drafted ADRs start at `Status: Proposed` and `Signers: Unsigned`.
    - Moving an ADR from `Proposed` to `Accepted` is a **permanent human gate** (`ADR-AUT-003`) requiring sign-off from the Architect (`Manoj`), Core Approvers (`Dwayne`, `Norm`), and the relevant domain owner.
 3. **Future Integration Note — ServiceNow & CMDB (Post-MVP Placeholder Only):**
@@ -97,7 +97,7 @@ Across the enterprise, specific integration domains and platform approvals are o
 
 ## Open Questions
 
-- [ ] **OQ-1 (GitHub Handles & Shared Mailboxes):** What are the exact GitHub handles for Manoj (`@manoj-todo`), Dwayne (`@dwayne-todo`), Norm (`@norm-todo`), and domain owners, and what are the active corporate distribution list addresses to replace `*@tbd`?
+- [x] **OQ-1 (GitHub Handles & Shared Mailboxes — RESOLVED 2026-10-21):** *Resolved (Accepted placeholders for MVP; replace before production):* Placeholder GitHub handles (`@manoj-todo`, `@dwayne-todo`, `@norm-todo`) and `*@tbd` shared mailboxes are accepted for the `microdrive-dev` MVP and will be replaced before production; `@vaishnavi4068` is present on every `CODEOWNERS` path so GitHub review routing works immediately.
 - [x] **OQ-2 (CMDB Non-VM CI Classes with Ken O'Connor & Stephanie — RESOLVED 2026-10-21):** *Resolved (Deferred post-MVP):* ServiceNow and CMDB are placeholders and out of scope for the `microdrive-dev` MVP (no CMDB CI creation required for the GCS slice).
 - [x] **OQ-3 (ServiceNow Non-Prod vs. Prod Flow — RESOLVED 2026-10-21):** *Resolved (Deferred post-MVP):* No ServiceNow call, adapter, or mock is required for the `microdrive-dev` MVP; kept as an interface placeholder only.
 - [x] **OQ-4 (Cloud-to-CMDB Active Reconciliation — RESOLVED 2026-10-21):** *Resolved (Deferred post-MVP):* Deferred post-MVP alongside CMDB integration.

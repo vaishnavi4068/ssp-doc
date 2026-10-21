@@ -5,9 +5,10 @@
 #   - Architect: Manoj (owns global architecture, ADR taxonomy, and autonomy gates)
 #   - Approvers: Dwayne, Norm (core architecture & operations sign-off)
 #
-# TODO: Replace placeholder GitHub handles (@manoj-todo, @dwayne-todo, @norm-todo,
-#       and domain stakeholder handles) with verified enterprise GitHub usernames
-#       or organization team slugs once provisioned.
+# TODO (pre-production): Placeholder GitHub handles (@manoj-todo, @dwayne-todo,
+#       @norm-todo) are accepted for the microdrive-dev MVP and must be replaced
+#       with verified enterprise GitHub usernames before production.
+#       @vaishnavi4068 is included on every path so review routing works now.
 # =============================================================================
 
 # Default owners for all repository files (Architect + Core Approvers)

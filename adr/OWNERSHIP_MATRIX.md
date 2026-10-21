@@ -1,6 +1,6 @@
 # SPP ADR Ownership and Stakeholder Matrix (`adr/OWNERSHIP_MATRIX.md`)
 
-Every ADR in `ssp-doc` requires a tracked owner consisting of **both** a shared team mailbox and a named accountable person (`ADR-BP-001`). Operations cannot be bypassed (per Allen / Norm), and transitioning any ADR from `Proposed` (unsigned) to `Accepted` (signed) requires explicit sign-off from the Architect (`Manoj`), Core Approvers (`Dwayne`, `Norm`), and the accountable domain owner.
+Every ADR in `ssp-doc` requires a tracked owner consisting of **both** a shared team mailbox and a named accountable person (`ADR-BP-001`). Placeholder GitHub handles (`@manoj-todo`, `@dwayne-todo`, `@norm-todo`) and `*@tbd` shared mailboxes are **accepted placeholders for the `microdrive-dev` MVP** (to be replaced before production), with `@vaishnavi4068` configured on every `CODEOWNERS` path so GitHub review routing works immediately. Operations cannot be bypassed (per Allen / Norm), and transitioning any ADR from `Proposed` (unsigned) to `Accepted` (signed) requires explicit sign-off from the Architect (`Manoj`), Core Approvers (`Dwayne`, `Norm`), and the accountable domain owner.
 
 ---
 
