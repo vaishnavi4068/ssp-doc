@@ -1,111 +1,246 @@
-# ADR-SVC-001: First Vertical Slice — GCS Bucket End-to-End (No UI)
+# ADR-SVC-001: First Vertical Slice — GCS Bucket (`gcs_bucket`) End-to-End and Guardrails
 
 - **ADR ID:** ADR-SVC-001
 - **Level:** endpoint-service
 - **Status:** Proposed
 - **Owner:** Manoj (Shared Mailbox: `spp-storage-gcp@tbd`, Named Owner: `Manoj`)
 - **Signers:** Unsigned (Required Signers: Manoj [Architect], Dwayne [Approver], Norm [Approver], Raju [Security])
-- **Affected Repos:** `ssp-doc`, `ssp-cp`, `ssp-workers`, `ssp-module-gcs` (`templates/resource-repo`), `spp-factory-foundation`
+- **Affected Repos:** `ssp-doc`, `ssp-cp`, `ssp-workers`, `ssp-module-gcs-bucket` (`ssp-module-gcs`), `spp-factory-foundation`
 - **Last Updated:** 2026-10-21
 
 ## Goal
 
-Define the end-to-end scope, request/approved contracts, security guardrails, and execution path for SPP's **first vertical slice**: provisioning a **Google Cloud Storage (GCS) bucket (`google_storage_bucket`)** from the `ssp-cp` REST API through all four states (`Requested -> Approved -> Expected -> Observed`) via Temporal (`ssp-workers`) and a Kubernetes Job Terraform runner (`spp-platform`) into `gs://microdrive-dev-spp-tfstate`, with **no UI**.
+Define the end-to-end four-gate contract (`Requested` → `Approved` → `Expected` → `Observed`), schema rejections, guardrail rules (`GCS-UBLA-001`, `GCS-PAP-001`, `GCS-ENC-001/002`, `GCS-RET-001`, `GCS-SDP-001`, `GCS-DEL-001`, `GCS-NAME-001..003`, `LBL-001/002`, `PRQ-001/002`), authoritative IAM bindings, and drift severity rules for SPP's **first vertical slice**: provisioning a **Google Cloud Storage bucket (`kind = "gcs_bucket"`, `google_storage_bucket`)** in region **`us-east1`** into `gs://microdrive-dev-spp-tfstate`, with **no UI**.
 
 ## Context
 
-In the design discussion (`uploads/design-digest.md`) and build order (`ADR-BP-002`), the team chose a GCP Cloud Storage bucket (`google_storage_bucket`) as the first resource to provision end-to-end because:
+From the design session (`uploads/design-digest.md`), build order (`ADR-BP-002`), the sanitized four-gate design package (`resource-types.md` §6, `gates.md` §6, `naming.md`; see [`docs/source-provenance.md`](../../docs/source-provenance.md)), and user overrides:
 
-1. It exercises every architectural layer of the platform (API authentication, synchronous `Requested` write in PostgreSQL, `Approved` security/operations guardrail enrichment, OPA policy evaluation, Temporal workflow orchestration on the `platform` namespace, deterministic Kubernetes Job execution `tf-op-<operation_id>` in `spp-platform`, Workload Identity + SA impersonation, and `Expected`/`Observed` state persistence in `gs://microdrive-dev-spp-tfstate`).
-2. It has zero external config-management dependencies (unlike VMs, which currently have a ~2-hour Ansible host-build playbook, or databases, which have Jenkins DBA jobs).
-3. It directly validates Raju's core security requirements (Customer-Managed Encryption Keys `CMEK`, `>= 90`-day retention policy, uniform bucket-level access, public access prevention, object versioning, and mandatory governance labels).
-4. **No UI (`ssp-ui`) is included in this slice:** requests are submitted and inspected strictly via the `ssp-cp` HTTP JSON API so backend reliability and state transitions are proven first.
+1. **Why `gcs_bucket` Is the First Vertical Slice:** Exercises every layer of the four-gate architecture (intake submission, closed JSON Schema validation, `RequestWorkflow`, `ApprovalGateWorkflow` with `gcs_bucket_owner`, OPA guardrail mutations + `guardrail_trace`, `pre_apply` tasks, `StateUnitReconcilerWorkflow`, deterministic K8s Job `tf-<phase>-<20hex>` in `spp-platform`, `Expected` revision in `gs://microdrive-dev-spp-tfstate`, and `<= 2 KB` `Observed` projection in AlloyDB) with **no UI**.
+2. **User Overrides Applied to `gcs_bucket`:**
+   - **Region `us-east1` Only (No Multi-Region `US`):** Although the source example showed `"location": "US"` and KMS key path `.../locations/us/...`, SPP's locked override restricts all GCP resources (including `prod`) to single region **`us-east1`** (`"location": "us-east1"`, KMS key in `locations/us-east1`).
+   - **Environment Token `nonprod` (No Hyphen):** All non-production environment codes (`sandbox`, `dev`, `qa`, `test`, `pdev`, `pqa`, `preprod`) map to **`nonprod`** (`{lob}-{env}-{app}-{purpose}-{suffix}`, e.g., `<lob>-nonprod-orders-landing-a1b2`).
+   - **Single State Bucket:** `gs://microdrive-dev-spp-tfstate` (no per-LOB state buckets).
+   - **No Deletion Without Human Approval in ANY Environment:** `force_destroy` is always `false` (`GCS-DEL-001`), and `action = "delete"` requires explicit human approval in both `nonprod` and `prod` (no `AUTO_APPROVED`).
 
 ## Decision
 
-1. **Headless API-to-Cloud Flow for the First Vertical Slice:**
-   - **Step 1 (`Requested`):** Authenticated caller invokes `POST /api/v1/requests` on `ssp-cp` with a minimal GCS bucket payload (`cloud = "gcp"`, `layout_version = "2.0"`, `lob`, `project_id`, `resource_type = "google_storage_bucket"`, `resource_name`, `region = "us-east1"`, `apm_id`, `environment`, `labels`, and optional `parameters` such as `storage_class`). `ssp-cp` validates the JSON Schema, checks zero secrets, and synchronously writes the `Requested` row to PostgreSQL without calling Temporal.
-   - **Step 2 (`Approved`):** `ssp-cp` enriches the request into an `Approved` specification by injecting:
-     - `operation_id` (`op-<ulid>`)
-     - `service_account_email` (the target project's dedicated provisioning SA)
-     - `state_backend` (`bucket = "microdrive-dev-spp-tfstate"`, `expected_key = "expected/<project_id>/terraform.tfstate"`, `observed_key = "observed/<project_id>/terraform.tfstate"`)
-     - `application_tier` (resolved from `apm_id`)
-     - `security` (`cmek_enabled = true`, `cmek_key_id = "projects/microdrive-dev/locations/us-east1/keyRings/<TODO>/cryptoKeys/<TODO>"` [owner: `vaishnavi4068`], `retention_days >= 90` [`retention_period >= 7776000` seconds], `public_access_prevention = "enforced"`, `raju_baseline_applied = true`, `uniform_bucket_level_access = true`, `versioning_enabled = true`)
-     - `operations_gate` (`approved = true`, `bypass_allowed = false`; ServiceNow and CMDB fields are populated only as static schema placeholders for `gates/schemas/resource-request.schema.json` compatibility—no external ServiceNow/CMDB calls or mock adapters are invoked in the `microdrive-dev` MVP)
-     `ssp-cp` evaluates the OPA policy suite (`spp_gate.rego` + `gcs_bucket.rego`) and persists the immutable `Approved` record in PostgreSQL.
-   - **Step 3 (`Expected`):** `ssp-cp` starts the provisioning workflow on the `platform` Temporal namespace (`temporal-frontend.spp-temporal.svc.cluster.local:7233`). `ssp-workers` launches deterministic Kubernetes Job `tf-op-<operation_id>` in namespace `spp-platform` (on node pool `spp-pool`), which runs `terraform init` and `terraform apply` against the GCS bucket module and writes `Expected` state to `gs://microdrive-dev-spp-tfstate/expected/<project_id>/terraform.tfstate`.
-   - **Step 4 (`Observed`):** Following apply (and on scheduled drift scans), an independent capture job reads actual bucket configuration from the GCP Storage API keyed by immutable GCS bucket resource ID (`outputs.cloud_resource_id`), writes `Observed` state to `gs://microdrive-dev-spp-tfstate/observed/<project_id>/terraform.tfstate`, compares `Observed` vs. `Expected` (alert-only on drift, per `ADR-AUT-002`), and `ssp-workers` updates the request status in `ssp-cp` to `observed`.
+### 1. Gate 1 (`Requested`) Canonical Envelope & Schema Rejections
+
+Example `Requested` document for `kind = "gcs_bucket"` (with `us-east1` and `nonprod` overrides applied):
+
+```json
+{
+  "api_version": "idp.spp/v1",
+  "kind": "gcs_bucket",
+  "action": "create",
+  "metadata": {
+    "apm_id": "apm0017299",
+    "project_id": "<lob>-nonprod-orders-svc",
+    "environment": "nonprod",
+    "lob": "<lob>",
+    "data_sensitivity": "restricted",
+    "data_classification": "proprietary",
+    "owner": "bucket.owner@example.com",
+    "shared_mailbox": "orders-team@example.com",
+    "requested_by": "requester@example.com",
+    "cost_center": "000000",
+    "tenancy": "dedicated",
+    "labels": {
+      "app": "orders"
+    },
+    "extensions": {
+      "<lob>": {
+        "<lob>ml_version": "1.5"
+      }
+    }
+  },
+  "spec": {
+    "name": "<lob>-nonprod-orders-landing-a1b2",
+    "location": "us-east1",
+    "storage_class": "STANDARD",
+    "versioning": false,
+    "lifecycle_rules": [
+      {
+        "action": { "type": "Delete" },
+        "condition": { "age_days": 365, "with_state": "ANY" }
+      }
+    ],
+    "access": [
+      {
+        "role": "roles/storage.objectAdmin",
+        "members": [
+          "serviceAccount:orders-pipeline@<lob>-nonprod-orders-svc.iam.gserviceaccount.com"
+        ]
+      },
+      {
+        "role": "roles/storage.objectViewer",
+        "members": [
+          "group:gcp-<lob>-nonprod-orders-read@example.com"
+        ]
+      }
+    ],
+    "purpose": "Landing zone for order events"
+  }
+}
+```
+
+**Schema & Policy Rejections at the `Requested` Gate:**
+1. **IAM Principal Types:** Rejects any member prefix other than `group:` and `serviceAccount:` (strictly forbids `user:`, `allUsers`, `allAuthenticatedUsers`).
+2. **IAM Role Allowlist:** Rejects any role outside the bucket allowlist (e.g., `roles/storage.objectAdmin`, `roles/storage.objectViewer`, `roles/storage.objectCreator`; strictly forbids `roles/storage.admin` and legacy bucket owner roles).
+3. **Closed Schema (`additionalProperties: false`):** Rejects any field not defined in `gcs_bucket.schema.json#/$defs/requested` (keeps secret-bearing fields out and prevents callers from requesting guardrail-owned fields such as `uniform_bucket_level_access`, `public_access_prevention`, `default_kms_key_name`, `soft_delete_policy`, or `force_destroy`).
+4. **Retention vs. Object Versioning Mutual Exclusion:** Rejects requests combining a bucket retention policy with `versioning: true` (mutually exclusive in Google Cloud Storage).
+5. **Naming & Region Validation:** Enforces `GCS-NAME-001` (`{lob}-{env}-{app}-{purpose}-{suffix}`), `GCS-NAME-002` (no `goog` prefix or `google`/`g00gle` substring), `GCS-NAME-003` (uniqueness check in `idp.resource` and `storage.buckets.get` 404), `NAM-RSV-001`, and `location == "us-east1"`.
+
+### 2. Gate 2 (`Approved`) Guardrail Rules & Mutations (`guardrail_trace`)
+
+At the `Approved` gate (`approval_gate_key = "gcs_bucket_owner"`), `RequestWorkflow` and OPA apply the following guardrail rules and record each in `idp.approval.guardrail_trace`:
+
+| Rule ID | Field / Path | Requested | Approved Value | Source / Rationale |
+| :--- | :--- | :--- | :--- | :--- |
+| **`GCS-UBLA-001`** | `/spec/uniform_bucket_level_access` | *(not requestable; legacy form said `false`)* | `true` | Constant (`true`). |
+| **`GCS-PAP-001`** | `/spec/public_access_prevention` | — | `"enforced"` | Constant (`"enforced"`). |
+| **`GCS-ENC-001` / `002`** | `/spec/kms_key_name` (`default_kms_key_name`) | — | `projects/<lob>-kms-<env>/locations/us-east1/keyRings/<lob>-<env>-use1/cryptoKeys/gcs-default` *(or `projects/microdrive-dev/locations/us-east1/keyRings/<TODO>/cryptoKeys/<TODO>` in `microdrive-dev`)* | **Lookup by `(LOB, environment_type, location="us-east1")`** — never a hardcoded constant (legacy Java constants pointed dev, QA, and prod at the same nonprod KMS key). Key region must match bucket location (`us-east1`). |
+| **`GCS-RET-001`** | `/spec/retention_days` (`retention_policy.retention_period`) | `none` | `90` days (`7776000` seconds; `is_locked = false`; `versioning` stays `false`) | Lookup by `data_sensitivity` (`>= 90` days illustrative floor; mutually exclusive with object versioning). |
+| **`GCS-SDP-001`** | `/spec/soft_delete_retention_days` (`soft_delete_policy.retention_duration_seconds`) | — | `7` days (`604800` seconds) | Constant (`7` days). |
+| **`GCS-DEL-001`** | `/spec/force_destroy` | — | `false` | Constant (`false`). |
+| **`LBL-001` / `002`** | `/metadata/labels` | `{"app": "orders"}` | Mandatory 9-label set merged + normalized with user labels (`ADR-GLB-008`) | Computed and normalized (`lowercase`, `[^a-z0-9_-]` → `_`, max 63 chars). |
+| **`PRQ-001`** | `/prerequisites` (`idp.lifecycle_task`) | — | `pre_apply` task `ad_group` via directory service for `gcp-<lob>-nonprod-orders-read@example.com` | Derived from `spec.access` group members. |
+| **`PRQ-002`** | `/prerequisites` (`idp.lifecycle_task`) | — | `pre_apply` task `vpc_sc_ingress` into `<lob>_nonprod_restricted_perimeter` | Derived from `metadata.data_sensitivity == "restricted"`. |
+
+### 3. Gate 3 (`Expected`) Composed `tfvars` Entry (`gcs_buckets` Collection)
+
+In `projects/<project_id>/expected/rev-NNNNNN/terraform.tfvars.json`, the bucket is rendered under `tfvars_collection = "gcs_buckets"`:
+
+```json
+{
+  "project": "<lob>-nonprod-orders-svc",
+  "name": "<lob>-nonprod-orders-landing-a1b2",
+  "location": "us-east1",
+  "storage_class": "STANDARD",
+  "uniform_bucket_level_access": true,
+  "public_access_prevention": "enforced",
+  "versioning": false,
+  "autoclass": false,
+  "default_kms_key_name": "projects/<lob>-kms-nonprod/locations/us-east1/keyRings/<lob>-nonprod-use1/cryptoKeys/gcs-default",
+  "retention_policy": {
+    "retention_period": 7776000,
+    "is_locked": false
+  },
+  "soft_delete_policy": {
+    "retention_duration_seconds": 604800
+  },
+  "lifecycle_rules": [
+    {
+      "action": { "type": "Delete" },
+      "condition": { "age": 365, "with_state": "ANY" }
+    }
+  ],
+  "labels": {
+    "app": "orders",
+    "costcenter": "000000",
+    "sppappid": "apm0017299",
+    "datasensitivity": "restricted",
+    "dataclassification": "proprietary",
+    "environmentsubtype": "nonprod",
+    "environmenttype": "nonprod",
+    "idp_resource_id": "9478bcfc-c2cf-583b-8bd8-096476647840",
+    "owner": "bucket_owner_example_com",
+    "primarylob": "<lob>",
+    "provisionedby": "idp",
+    "sharedemailaddress": "orders-team_example_com",
+    "tenancy": "dedicated"
+  },
+  "iam_bindings": {
+    "roles/storage.objectAdmin": [
+      "serviceAccount:orders-pipeline@<lob>-nonprod-orders-svc.iam.gserviceaccount.com"
+    ],
+    "roles/storage.objectViewer": [
+      "group:gcp-<lob>-nonprod-orders-read@example.com"
+    ]
+  },
+  "force_destroy": false
+}
+```
+
+- **Authoritative Per-Role IAM Bindings:** `iam_bindings` are rendered as authoritative per-role bindings (`google_storage_bucket_iam_binding`), so any member added out of band in GCP Console is detected as drift.
+
+### 4. Gate 4 (`Observed`) Projection & Drift Severity for `gcs_bucket`
+
+- `resource_observed.projection` (`< 2000` bytes; example bucket projection in source is `1,429` bytes) uses the same shape as the `Expected` entry (minus `drift_ignore_paths = ['/force_destroy']`).
+- **Drift Severity Mapping (`idp.drift_finding`, Alert-Only):**
+  - `critical`: `public_access_prevention` (e.g., switched to `"inherited"` in Console → `guardrail_rule_id = "GCS-PAP-001"`), `uniform_bucket_level_access`, `default_kms_key_name`, or public IAM principal (`allUsers` / `allAuthenticatedUsers`).
+  - `high`: `retention_policy` (retention shortened), `soft_delete_policy`.
+  - `medium`: `storage_class`, `lifecycle_rules`, non-public `iam_bindings` (e.g., extra group granted out of band).
+  - `low`: `labels` (e.g., `owner` label removed).
+
+*(Deferred Note — Legacy Shim Mapping: In the source package §8, a legacy shim mapped ticket `TKT-0000004029` `templatejsondata` fields `storage_bucket_name`/`gcs_bucket_name` -> `spec.name`, `storage_bucket_project` -> `metadata.project_id`, `storage_bucket_location` -> `spec.location`, etc. Per user decision, legacy portal mapping is out of scope for now and retained only as a deferred note in [`docs/source-provenance.md`](../../docs/source-provenance.md).)*
 
 ## Requirements
 
-- **REQ-1 (MUST):** The first vertical slice MUST operate end-to-end via the `ssp-cp` REST API (`POST /api/v1/requests`, `GET /api/v1/requests/{request_id}`) with **no UI dependency**.
-- **REQ-2 (MUST):** The GCS bucket Terraform module MUST enforce:
-  1. `encryption.default_kms_key_name = var.cmek_key_id` (non-empty CMEK key reference in `us-east1`, placeholder `projects/microdrive-dev/locations/us-east1/keyRings/<TODO>/cryptoKeys/<TODO>`, owner: `vaishnavi4068`)
-  2. `retention_policy.retention_period >= 7776000` (`>= 90` days in seconds, with `retention_policy.is_locked = false` by default in `dev`/`sandbox` so non-prod buckets can be decommissioned cleanly when empty)
-  3. `versioning.enabled = true`
-  4. `uniform_bucket_level_access = true`
-  5. `public_access_prevention = "enforced"`
-  6. `force_destroy = false`
-  7. Effective labels containing `apm_id`, `cost_center`, `environment`, `owner`, `data_classification`, and `managed_by = "spp"`
-  8. Audit logging via **GCP Cloud Audit Logs** (no separate `logging.log_bucket` required in MVP)
-- **REQ-3 (MUST):** The GCS bucket module MUST output `cloud_resource_id` (`google_storage_bucket.this.id` / `self_link`) and `bucket_name` so `Observed` state and drift detection match by immutable CSP resource ID (`ADR-AUT-002`).
-- **REQ-4 (MUST):** Both `Requested` and `Approved` payloads MUST contain zero secrets (`ADR-GLB-003`, `ADR-GLB-005`).
-- **REQ-5 (MUST):** All 7 stages of the factory verification gate (`gates/scripts/run_gate.sh`), including `terraform test` with `mock_provider "google"` and `tfsec`, MUST pass on the GCS bucket module.
+- **REQ-1 (MUST):** The first vertical slice (`kind = "gcs_bucket"`) MUST operate end-to-end via the `ssp-cp` REST API through all four gates (`REQUESTED -> APPROVED -> EXPECTED -> OBSERVED`) with **no UI dependency**.
+- **REQ-2 (MUST):** At the `Requested` gate, `ssp-cp` MUST reject IAM members other than `group:` and `serviceAccount:`, roles outside the bucket allowlist, unknown/guardrail-owned fields, `location != "us-east1"`, and retention policy combined with `versioning = true`.
+- **REQ-3 (MUST):** At the `Approved` gate, `ssp-cp` MUST enforce and trace `GCS-UBLA-001` (`true`), `GCS-PAP-001` (`"enforced"`), `GCS-ENC-001/002` (lookup by `(LOB, environment_type, "us-east1")`), `GCS-RET-001` (`>= 90` days / `7776000`s when versioning is `false`), `GCS-SDP-001` (`7` days / `604800`s), `GCS-DEL-001` (`force_destroy = false`), `LBL-001/002`, and `PRQ-001/002`, and require approval from `gcs_bucket_owner` (`metadata.owner`, `self_approval = "deny"`).
+- **REQ-4 (MUST):** The Terraform module (`ssp-module-gcs-bucket`) MUST render authoritative per-role `iam_bindings`, set `force_destroy = false`, output `cloud_resource_id`, and configure `drift_ignore_paths = ['/force_destroy']`.
 
 ## Guardrails
 
-- **GR-1:** Never allow a GCS bucket to be created with `public_access_prevention != "enforced"` or `uniform_bucket_level_access != true`.
-- **GR-2:** Never allow a GCS bucket to be created without CMEK encryption or with `retention_days < 90`.
-- **GR-3:** Do not couple Phase 3 completion to any `ssp-ui` frontend component.
+- **GR-1:** Never allow multi-region `"US"` on `gcs_bucket`; `location` MUST be `"us-east1"` in both `nonprod` and `prod`.
+- **GR-2:** Never hardcode a single nonprod CMEK key across environments; always resolve `default_kms_key_name` via `(LOB, environment_type, "us-east1")` lookup (`GCS-ENC-001/002`).
+- **GR-3:** Never allow `user:`, `allUsers`, `allAuthenticatedUsers`, or `roles/storage.admin` on a managed bucket.
+- **GR-4:** Never set `force_destroy = true` (`GCS-DEL-001`) or auto-approve a bucket deletion in `nonprod` or `prod`.
 
 ## Consequences
 
 ### Positive
 
-- Proves the entire SPP control-plane and execution architecture end-to-end with a real GCP resource and real GCS state files in `gs://microdrive-dev-spp-tfstate`.
-- Reuses and aligns directly with the reference GCS bucket implementation in `spp-factory-foundation/templates/resource-repo/`.
+- Proves the complete four-gate data model (`idp` schema in AlloyDB + `gs://microdrive-dev-spp-tfstate` in GCS) on a real GCP resource (`gcs_bucket`) with full `guardrail_trace` and authoritative IAM drift detection.
 
 ### Negative / Trade-offs
 
-- Requires a valid Cloud KMS CryptoKey (`cmek_key_id`) in `microdrive-dev` (with `roles/cloudkms.cryptoKeyEncrypterDecrypter` granted to the project's GCS service agent) before live `terraform apply` can succeed in `microdrive-dev`.
+- Because GCS retention policy and Object Versioning are mutually exclusive in Cloud Storage, buckets requiring retention lock/period (`GCS-RET-001`) keep `versioning = false` and rely on `soft_delete_policy` (`7` days, `GCS-SDP-001`) for accidental-delete recovery.
 
 ## Acceptance Criteria
 
-- [ ] Per-service GCS ADR and API/DB ADRs are present in `ssp-cp`, and the GCS Terraform module + Rego policy passes `run_gate.sh`.
-- [ ] Submitting a `POST /api/v1/requests` payload for `google_storage_bucket` transitions through `Requested -> Approved -> Expected -> Observed`.
-- [ ] `gs://microdrive-dev-spp-tfstate/expected/<project_id>/terraform.tfstate` and `gs://microdrive-dev-spp-tfstate/observed/<project_id>/terraform.tfstate` are populated and `cloud_resource_id` is recorded in PostgreSQL.
+- [ ] `ssp-cp` validates `gcs_bucket` requests against `gcs_bucket.schema.json` and `idp.gcp.gcs_bucket` Rego policies.
+- [ ] `ssp-module-gcs-bucket` implements the `gcs_buckets` tfvars contract and passes `terraform test` (`mock_provider "google"`) and `opa test`.
+- [ ] `idp.resource_kind` seed row for `gcs_bucket` is registered in `specs/data-model/spp_state_model.sql`.
 
 ## Success Criteria
 
 - **SC-1:**
-  - **Given** a minimal `Requested` JSON payload for a GCS bucket (`storage_class = "STANDARD"`, `region = "us-east1"`) submitted to `POST /api/v1/requests`
-  - **When** `ssp-cp` and `ssp-workers` process the request
-  - **Then** `ssp-cp` writes `Requested` and enriched `Approved` records in PostgreSQL, `ssp-workers` runs K8s Job `tf-op-<operation_id>` in `spp-platform`, the GCS bucket is created with CMEK and `>= 90`-day retention, and state files exist under `expected/` and `observed/` in `gs://microdrive-dev-spp-tfstate`.
+  - **Given** a `Requested` payload for `kind = "gcs_bucket"` with `name = "<lob>-nonprod-orders-landing-a1b2"` and `location = "us-east1"`
+  - **When** approved by `metadata.owner` (`gcs_bucket_owner` gate) and reconciled by `su-gcp-<project_id>`
+  - **Then** `approved_spec` and `guardrail_trace` contain `GCS-UBLA-001`, `GCS-PAP-001`, `GCS-ENC-001/002`, `GCS-RET-001`, `GCS-SDP-001`, `GCS-DEL-001`, `LBL-001`, and `PRQ-001/002`, `terraform.tfvars.json` is written to `gs://microdrive-dev-spp-tfstate`, and `resource_observed.projection` (`< 2000` bytes) is recorded in AlloyDB.
 - **SC-2:**
-  - **Given** a GCS bucket request attempting to set `retention_days = 30` or `public_access_prevention = "inherited"`
-  - **When** evaluated by the OPA policy gate in CI or `ssp-cp`
-  - **Then** the request is rejected before any Temporal workflow or Kubernetes Job is started.
+  - **Given** a `gcs_bucket` request containing `user:alice@example.com`, `roles/storage.admin`, `location = "US"`, or `uniform_bucket_level_access = false`
+  - **When** validated at the `Requested` gate
+  - **Then** `ssp-cp` rejects the request before creating an approval workflow.
 
 ## Affected Repos
 
 | Repository | Impact Summary |
 | :--- | :--- |
-| `ssp-doc` | Defines the first vertical slice scope and contract (`ADR-SVC-001`) |
-| `ssp-cp` | Hosts the detailed per-service GCS ADR, `Requested`/`Approved` enrichment, and API endpoints |
-| `ssp-workers` | Executes the Temporal workflow and launches `tf-op-<operation_id>` for GCS bucket creation |
-| `ssp-module-gcs` | Houses the GCS bucket Terraform module, `gcs_bucket.rego` policies, examples, and `tftest.hcl` |
-| `spp-factory-foundation` | Validates the GCS module via `templates/resource-repo` and `gates/scripts/run_gate.sh` |
+| `ssp-doc` | Defines `ADR-SVC-001` (`gcs_bucket` four-gate contract and `GCS-*` guardrails) |
+| `ssp-cp` | Implements `gcs_bucket` schema validation, `GCS-*` guardrail enrichment, and `gcs_bucket_owner` gate |
+| `ssp-workers` | Executes `PRQ-001`/`PRQ-002` pre-apply tasks, `tf-<phase>-<20hex>` Jobs, and bucket drift comparison |
+| `ssp-module-gcs-bucket` | Implements the `google_storage_bucket` + authoritative IAM Terraform module and `idp.gcp.gcs_bucket` Rego rules |
+| `spp-factory-foundation` | Validates `gcs_bucket` schemas, Rego rules, and test vectors in `gates/` |
 
 ## Open Questions
 
-- [x] **OQ-1 (CMEK Key URI in `microdrive-dev` — RESOLVED / USER-SUPPLIED `TODO: vaishnavi4068`):** *Resolved:* The user (`vaishnavi4068`) will create and provide the Cloud KMS key in `microdrive-dev` (`us-east1`). Placeholder (owner: `vaishnavi4068`): `projects/microdrive-dev/locations/us-east1/keyRings/<TODO>/cryptoKeys/<TODO>`.
-- [x] **OQ-2 (Access Logging Bucket Requirement — RESOLVED 2026-10-21):** *Resolved:* Use **GCP Cloud Audit Logs only** (no separate access-log bucket required for MVP).
-- [x] **OQ-3 (Retention Policy Lock — RESOLVED 2026-10-21):** *Resolved:* `retention_policy.is_locked` defaults to **`false` in `dev`/`sandbox`**; setting `is_locked = true` is restricted to the `operations` persona.
+- [x] **OQ-1 (CMEK Key URI in `microdrive-dev` / `us-east1` — RESOLVED / USER-SUPPLIED `TODO: vaishnavi4068`):** *Resolved:* In `microdrive-dev`, use placeholder `projects/microdrive-dev/locations/us-east1/keyRings/<TODO>/cryptoKeys/<TODO>` (`owner: vaishnavi4068`); in enterprise 2.0 projects, lookup `projects/<lob>-kms-<env>/locations/us-east1/keyRings/<lob>-<env>-use1/cryptoKeys/gcs-default` by `(LOB, environment_type, "us-east1")`.
+- [ ] **OQ-2 (Unverified Source Gaps for `gcs_bucket` Seed Row & Examples — SOURCE GAP [Owner: Manoj]):** **Unverified (source gap):**
+  1. In `idp_state_model.sql` lines 649–652, the `idp.resource_kind` seed row for `gcs_bucket` was partially cut off (only the tail `ARRAY['/force_destroy'], 'storage-bucket')` was visible; `tf_address_template = 'module.gcs_bucket["{name}"]'`, `opa_package = 'idp.gcp.gcs_bucket'`, `schema_uri = 'schemas/gcs_bucket.schema.json'`, and `tf_module_source` are inferred from the `spanner_instance` row and `resource-types.md`).
+  2. `schemas/gcs_bucket.schema.json` and `examples/gcs_bucket.gates.json` were listed in the source file tree (photo 6548) but `[NOT CAPTURED]` in the photos.
 
 ## Related ADRs
 
-- [ADR-GLB-003: Four-State Provisioning Model and Storage Layout](../global/ADR-GLB-003-four-state-model.md)
-- [ADR-GLB-007: Governance Gates and Policy (Rego)](../global/ADR-GLB-007-governance-gates-and-policy-rego.md)
-- [ADR-AUT-001: Terraform Execution via Kubernetes Jobs](../automation/ADR-AUT-001-terraform-execution-k8s-job.md)
-- [ADR-AUT-002: Day-2 Operations Scope](../automation/ADR-AUT-002-day-2-operations-scope.md)
-- [ADR-BP-002: Product Build Order and Delivery Phasing](../business-process/ADR-BP-002-build-order-and-phasing.md)
+- [ADR-GLB-003: Four-Gate Provisioning State Model and Storage Layout](../global/ADR-GLB-003-four-state-model.md)
+- [ADR-GLB-004: Data Model and Centralized PostgreSQL Database (AlloyDB for PostgreSQL)](../global/ADR-GLB-004-data-model-and-database.md)
+- [ADR-GLB-006: Naming Conventions and Identifier Patterns](../global/ADR-GLB-006-naming-and-labeling-conventions.md)
+- [ADR-GLB-007: Governance Gates, Guardrails, Invariants, and Policy (Rego)](../global/ADR-GLB-007-governance-gates-and-policy-rego.md)
+- [ADR-GLB-008: Label and Tag Standard](../global/ADR-GLB-008-label-and-tag-standard.md)
+- [ADR-GLB-009: Resource Kind Registry](../global/ADR-GLB-009-resource-kind-registry.md)
+- [ADR-BP-003: Roles, Personas, and Approval Gate Governance](../business-process/ADR-BP-003-roles-and-approver-governance.md)
+- [ADR-SVC-002: Cloud Spanner Instance and Database Specification](ADR-SVC-002-spanner-instance-and-database.md)

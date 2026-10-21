@@ -1,4 +1,4 @@
-# ADR-GLB-007: Governance Gates and Policy (Rego)
+# ADR-GLB-007: Governance Gates, Guardrails, Invariants, and Policy (Rego)
 
 - **ADR ID:** ADR-GLB-007
 - **Level:** global
@@ -10,110 +10,165 @@
 
 ## Goal
 
-Establish a clean-slate Open Policy Agent (`OPA` / `Rego`) governance framework and deterministic verification gate architecture—with zero policy reuse from legacy "taxi"—that enforces security defaults (CMEK, `>= 90`-day retention, Raju baseline, no secrets), approved GCP regions (`us-east1`), naming/labeling rules, the non-bypassable Operations Gate, and the hard guardrail prohibiting any resource deletion/replacement without explicit human-in-the-loop approval both in CI (`spp-factory-foundation/gates/`) and at runtime (`ssp-cp` and `ssp-workers`).
+Establish a clean-slate Open Policy Agent (`OPA` / `Rego`) governance framework, guardrail trace architecture (`GCS-*`, `SPN-*`, `LBL-*`, `PRQ-*`), reconciliation invariants (`INV-1..INV-9`), and drift severity classification that enforce security defaults (CMEK in `us-east1`, retention floors, Raju baseline, zero secrets), single-region `us-east1` scope, non-bypassable Operations Gate, and the hard guardrail prohibiting any deletion, destroy, or replacement of any resource in **any** environment (`nonprod` or `prod`) without explicit human approval.
 
 ## Context
 
-From the design discussion (`uploads/design-digest.md`) and `spp-factory-foundation`:
+From the design session (`uploads/design-digest.md`), the sanitized four-gate design package (`gates.md`, `other.md`, `raw/idp_state_model.reconstructed.sql`; see [`docs/source-provenance.md`](../../docs/source-provenance.md)), and user overrides:
 
-1. **Clean-Slate OPA Rules:** The team explicitly decided: "We definitely would do our own OPA rules" evaluated against SPP's own JSON Schema, reusing nothing from legacy "taxi".
-2. **Preventing Raju Auto-Deletions via `Approved` State Enrichment:** Today, Raju's security compliance system deletes non-compliant cloud resources without warning. SPP prevents this by injecting Raju's security baseline—including Customer-Managed Encryption Keys (`CMEK`), `>= 90`-day retention (`retention_days >= 90`), and `public_access_prevention = "enforced"`—into the `Approved` state and verifying compliance with OPA before Terraform executes.
-3. **Operations Cannot Be Bypassed & Human-in-the-Loop Deletion Gate:** Allen set the non-negotiable organizational rule (championed by Norm and Karen) that **operations cannot be bypassed**. Every `Approved` payload must satisfy the Operations Gate (`operations_gate.approved == true`, `operations_gate.bypass_allowed == false`). Furthermore, **no deletion or destructive replacement of any resource is permitted without explicit human-in-the-loop approval**: Rego policies must deny any request or Terraform plan (`resource_changes[*].change.actions`) containing a `delete` or `replace` (`["delete", "create"]` / `["create", "delete"]`) action unless an explicit human approval record is present (`ADR-AUT-002`). *(Note: ServiceNow and CMDB fields are retained as non-blocking schema placeholders for future post-MVP integration and are out of scope as active gates in the `microdrive-dev` MVP, per `ADR-BP-001`.)*
-4. **7-Stage Automated Factory Gate with Bounded Rework:** In `spp-factory-foundation`, every ADR, schema, policy, and module PR must pass the 7-stage verification gate (`gates/scripts/run_gate.sh`). If a gate check fails during a factory run, the agent may retry at most **3 times** before the work item transitions to **`BLOCKED`** for human escalation.
+1. **Three Policy Evaluation Stages Recorded in `idp.policy_evaluation`:**
+   - `stage = 'requested'`: Evaluates raw/canonical `requested_spec` against closed JSON Schemas and OPA advisory/denial rules (rejecting secret-bearing fields, forbidden IAM principal types like `user:`, `allUsers`, `allAuthenticatedUsers`, roles outside the kind's allowlist, or user attempts to set guardrail-owned fields).
+   - `stage = 'approved'`: Evaluates and applies guardrail mutations (`decision IN ('allow', 'deny', 'allow_with_mutations')`), recording every rule mutation in `policy_evaluation.mutations` (`[{rule_id, op, path, value, reason}]`) and `approval.guardrail_trace` (`[{rule_id, path, from, to, reason}]`) along with `opa_package`, `bundle_revision`, and `input_sha256`.
+   - `stage = 'plan'`: Evaluates `terraform show -json <planfile>` (`plan.json`) for an `expected_revision` before `terraform apply` is allowed to run.
+2. **User Decisions Overriding Source Open Decisions:**
+   - **Region `us-east1` Only (No Multi-Region):** Approved GCP region is **`us-east1` only** (including `prod` and Tier 1). Multi-region buckets (`US`) and multi-region Spanner configs (`nam3`) from the source examples are overridden everywhere by `us-east1` / `regional-us-east1`.
+   - **No Deletion/Destroy/Replace Without Explicit Human Approval in ANY Environment:** The source had an open decision leaning toward "Owner plus platform team for prod" and allowed `AUTO_APPROVED` statuses. **User decision overrides this:** no deletion, destroy, or destructive replacement of any resource is permitted without explicit human approval in **any** environment (`nonprod` or `prod`), and `AUTO_APPROVED` / `auto_approved` is strictly forbidden for `action = 'delete'` or any Terraform plan with `destroy > 0` or `replace > 0`. Any revision whose plan contains a destroy without an approved delete request is blocked (`blocked_reason = 'destroy_without_delete_request'`).
+   - **Alert-Only Drift (No Auto-Reapply):** The source leaned toward auto-reapplying critical guardrail drift (`PAP`, `UBLA`, `CMEK`, public IAM). **User decision overrides this:** drift is **alert-only** in all cases; never auto-reapply. Remediation always goes through a new approved request.
 
 ## Decision
 
-1. **Dual-Point Policy Enforcement (CI Gate + Runtime Control Plane & Runner Plan Gate):**
-   - **Build-Time (Factory CI Gate in `spp-factory-foundation/gates/`):** Every PR across `ssp-doc`, `ssp-cp`, and `ssp-module-<type>` runs:
-     1. YAML workflow lint (`yamllint` / PyYAML)
-     2. ADR structural & ownership lint (`lint_adrs.py`)
-     3. Canonical JSON Schema validation (`validate_schema.py` against `gates/schemas/resource-request.schema.json`)
-     4. OPA Rego unit tests (`opa test gates/policies/ <repo>/policies/ -v`)
-     5. Conftest policy evaluation against `examples/requested.json` and `examples/approved.json`
-     6. Terraform format, offline validation, and `mock_provider` plan tests (`terraform fmt -check`, `terraform validate`, `terraform test`)
-     7. Static security scan (`tfsec`)
-   - **Runtime (`ssp-cp` Approval Gate + `ssp-workers` Pre-Apply Plan Gate):**
-     1. Before `ssp-cp` persists an `Approved` spec or starts a Temporal workflow in `platform`, it enriches the request with security/operational defaults and evaluates the canonical JSON Schema + OPA policy bundle.
-     2. Inside the `tf-op-<operation_id>` runner Job (`ssp-workers`), `terraform plan -out=tfplan && terraform show -json tfplan > tfplan.json` is evaluated by OPA/Rego before `terraform apply` runs. Any `deny` blocks execution immediately.
-2. **Mandatory Global Rego Policy Rules (`gates/policies/spp_gate.rego`):**
-   - **State, Cloud & 2.0 Scope:** `state` in `{"requested", "approved"}`; `cloud == "gcp"`; `layout_version == "2.0"`; `resource_type != "google_bigquery_table"` (BigQuery datasets only).
-   - **Zero Secrets:** Reject any key matching `password`, `passwd`, `secret`, `private_key`, `api_key`, `apikey`, `access_token`, `auth_token`, `bearer_token`, `client_secret`, `connection_string`, `credentials`, or values matching private key / token / credential regexes.
-   - **Required Labels:** `apm_id`, `cost_center`, `environment`, `owner`, `data_classification` present and non-empty.
-   - **Naming Convention:** `resource_name` matches `^gcp-[a-z0-9]+-(sandbox|dev|nonprod|prod)-[a-z0-9-]+$`.
-   - **Approved GCP Regions:** `approved_regions.gcp = {"us-east1"}` (`us-east1` only for now).
-   - **`Approved`-State Security Baseline:** `security.cmek_enabled == true`, non-empty `security.cmek_key_id` (using `projects/microdrive-dev/locations/us-east1/keyRings/<TODO>/cryptoKeys/<TODO>` in `microdrive-dev`, owner: `vaishnavi4068`, per `ADR-SVC-001`), `security.retention_days >= 90`, `security.public_access_prevention == "enforced"`, `security.raju_baseline_applied == true`.
-   - **`Approved`-State Storage & Identity:** `state_backend.expected_key == "expected/<project_id>/terraform.tfstate"`, `state_backend.observed_key == "observed/<project_id>/terraform.tfstate"`, and `service_account_email` contains `project_id`.
-   - **`Approved`-State Operations Gate:** `operations_gate.approved == true` and `operations_gate.bypass_allowed == false` (with `servicenow` and `cmdb` blocks carried only as static schema placeholders in the MVP; live ServiceNow/CMDB gating is deferred post-MVP per `ADR-BP-001`).
-   - **No Delete or Replace Without Explicit Human-in-the-Loop Approval (`ADR-AUT-002`):** Rego MUST deny any `decommission` request or any Terraform plan (`input.resource_changes[_].change.actions[_] == "delete"`) unless an explicit human approval record (`input.human_approval.approved == true`, non-empty `input.human_approval.approver`, `input.human_approval.approval_id`, and `input.human_approval.reason`) is present.
+### 1. Three-Stage Policy & Schema Enforcement (`requested`, `approved`, `plan`)
+
+1. **Stage 1 — `requested` Gate (Closed JSON Schema + OPA):**
+   - Rejects any field not defined in `<kind>.schema.json#/$defs/requested` (preventing secret-bearing fields and disallowing users from requesting guardrail-owned fields such as `uniform_bucket_level_access`, `public_access_prevention`, `force_destroy`, `deletion_protection`, or `default_kms_key_name`).
+   - Rejects IAM members other than `group:` and `serviceAccount:` (never `user:`, `allUsers`, or `allAuthenticatedUsers`).
+   - Rejects IAM roles outside the kind's explicit allowlist (e.g., no `roles/storage.admin` or legacy owner roles).
+   - Rejects any location/region other than `us-east1`.
+2. **Stage 2 — `approved` Gate (Guardrail Injection + `guardrail_trace` + Human Approval Gate):**
+   - Evaluates the kind's OPA package (`idp.gcp.gcs_bucket`, `idp.gcp.spanner_instance`, `idp.gcp.spanner_database`) and injects guardrail-owned fields (`GCS-*`, `SPN-*`, `LBL-*`) and `pre_apply`/`post_apply` lifecycle tasks (`PRQ-*`).
+   - Writes every mutation to `approval.guardrail_trace` (`[{rule_id, path, from, to, reason}]`) and links `approval.policy_evaluation_id`.
+   - Enforces the kind's human approval gate (`ADR-BP-003`) and the non-bypassable Operations Gate.
+3. **Stage 3 — `plan` Gate (Pre-Apply Plan Inspection on `expected_revision`):**
+   - Evaluates `plan.json` (`terraform show -json <planfile>`) against OPA and records `plan_summary = {add, change, destroy, replace}` on `idp.expected_revision`.
+   - If `plan_summary.destroy > 0` or `plan_summary.replace > 0` without an explicit human-approved `delete` / destructive plan approval in **any** environment (`nonprod` or `prod`), the revision transitions to `BLOCKED` with `blocked_reason = 'destroy_without_delete_request'`.
+
+### 2. Master Guardrail Rule Catalog (`GCS-*`, `SPN-*`, `LBL-*`, `PRQ-*`, `NAM-*`)
+
+Detailed per-kind specifications live in `ADR-SVC-001` (`gcs_bucket`), `ADR-SVC-002` (`spanner_instance` / `spanner_database`), `ADR-GLB-006` (naming), and `ADR-GLB-008` (labels). Summary of guardrail rule families:
+
+| Rule ID | Target Kind(s) | Gate | Path / Target | Enforced Value / Behavior |
+| :--- | :--- | :--- | :--- | :--- |
+| **`GCS-UBLA-001`** | `gcs_bucket` | `approved` | `/spec/uniform_bucket_level_access` | Constant `true` (not requestable; legacy form defaulted to `false`). |
+| **`GCS-PAP-001`** | `gcs_bucket` | `approved` | `/spec/public_access_prevention` | Constant `"enforced"`. |
+| **`GCS-ENC-001` / `002`** | `gcs_bucket` | `approved` | `/spec/kms_key_name` (`default_kms_key_name`) | Looked up by `(LOB, environment_type, location="us-east1")`; must match bucket region `us-east1`. |
+| **`GCS-RET-001`** | `gcs_bucket` | `approved` | `/spec/retention_days` (`retention_policy.retention_period`) | `>= 90` days (`7776000` seconds) lookup by data sensitivity (when object versioning is `false`; mutually exclusive with versioning in GCS). |
+| **`GCS-SDP-001`** | `gcs_bucket` | `approved` | `/spec/soft_delete_retention_days` (`soft_delete_policy.retention_duration_seconds`) | Constant `7` days (`604800` seconds). |
+| **`GCS-DEL-001`** | `gcs_bucket` | `approved` | `/spec/force_destroy` | Constant `false`. |
+| **`SPN-CFG-001`** | `spanner_instance` | `approved` | `/spec/config` | `"regional-us-east1"` in **all** environments (`nonprod` and `prod`) and tiers (`Tier 1..4`) per SPP `us-east1`-only override *(source had `nam3` for Tier 1/prod and `regional-us-east4` for nonprod)*. |
+| **`SPN-EDT-001` / `002`** | `spanner_instance` | `approved` | `/spec/edition` | `ENTERPRISE_PLUS` for Tier 1 or `prod`; `STANDARD` for Tier 2–4 `nonprod` (`ENTERPRISE` if autoscaled). |
+| **`SPN-BKP-001` / `002`** | `spanner_instance`, `spanner_database` | `approved` | `/spec/default_backup_schedule_type`, `/spec/backup_schedule` | Instance `default_backup_schedule_type = "AUTOMATIC"`; database `backup_schedule`: explicit daily schedule for Tier 1 or `prod`, `null` (instance `AUTOMATIC` default) for Tier 2–4 `nonprod`. |
+| **`SPN-DEL-001`** | `spanner_instance` | `approved` | `/spec/force_destroy` | Constant `false`. |
+| **`SPN-DEL-002`** | `spanner_database` | `approved` | `/spec/deletion_protection`, `/spec/enable_drop_protection` | Constant `true` for both `deletion_protection` and `enable_drop_protection`. |
+| **`SPN-ENC-001`** | `spanner_database` | `approved` | `/spec/kms_key_names` (`encryption_config.kms_key_names`) | `[ "projects/<lob>-kms-<env>/locations/us-east1/keyRings/<lob>-<env>-use1/cryptoKeys/spanner-default" ]` matching `regional-us-east1`. |
+| **`SPN-IAM-001`** | `spanner_instance` | `requested` / `approved` | `/spec/access` | Denies granting `roles/spanner.databaseReader` (or database-level data roles) at the Spanner instance level on `shared` tenancy instances (allowed only on `dedicated` instances). |
+| **`LBL-001`** | All labelable kinds | `approved` | `/metadata/labels` | Merges the 9 mandatory labels (`sppappid`, `costcenter`, `environmenttype`, `environmentsubtype`, `primarylob`, `datasensitivity`, `owner`, `provisionedby`, `idp_resource_id`) with user labels (`ADR-GLB-008`). |
+| **`LBL-002`** | All labelable kinds | `approved` | `/metadata/labels/*` | Normalizes label values (lowercase, replace `[^a-z0-9_-]` with `_`, max 63 chars, drop empty) and records changes in `guardrail_trace` (`ADR-GLB-008`). |
+| **`PRQ-001`** | `gcs_bucket`, `spanner_*` | `approved` | `/prerequisites` (`idp.lifecycle_task`) | Materializes `pre_apply` task `ad_group` via directory service for any requested `group:gcp-<lob>-<env>-<app>-*` IAM member. |
+| **`PRQ-002`** | `gcs_bucket` | `approved` | `/prerequisites` (`idp.lifecycle_task`) | Materializes `pre_apply` task `vpc_sc_ingress` into `<lob>_<env>_restricted_perimeter` when `data_sensitivity = "restricted"`. |
+| **`PRQ-003`** | `spanner_instance` | `approved` | `/prerequisites` (`idp.lifecycle_task`) | Materializes `pre_apply` task `enable_service` for `spanner.googleapis.com` on the target project. |
+| **`PRQ-004`** | `spanner_instance` | `approved` | `/prerequisites` (`idp.lifecycle_task`) | Materializes `pre_apply` task `vpc_sc_project_membership` placing `<project_id>` inside `<lob>_<env>_restricted_perimeter` for restricted data. |
+
+### 3. Platform Reconciliation Invariants (`INV-1..INV-9`)
+
+These nine invariants are the reconciliation gates designed by humans and enforced mechanically across PostgreSQL, OPA, and Temporal:
+
+| ID | Invariant Statement | Mechanical Enforcement Point |
+| :--- | :--- | :--- |
+| **`INV-1`** | **`Requested` and `Approved` documents contain no secret values** | Closed JSON Schemas (`additionalProperties: false`) + AlloyDB `CHECK` constraints (`submission_no_secret_values`, `request_no_secret_values`) + OPA secret-key scan. |
+| **`INV-2`** | **[Unverified (source gap): `[NOT CAPTURED]` in source photos]** | **Unverified (source gap):** Source table rows for `INV-2..INV-4` were cut off in the photo; see `OQ-4` below. |
+| **`INV-3`** | **[Unverified (source gap): `[NOT CAPTURED]` in source photos]** | **Unverified (source gap):** See `OQ-4` below. |
+| **`INV-4`** | **[Unverified (source gap): partial capture ending with `...'plan'"); otherwise the revision becomes BLOCKED`]** | Enforced at `stage = 'plan'` in `idp.policy_evaluation` (`stage = 'plan' AND decision = 'allow'`), prerequisite `lifecycle_task` completion (`status = 'SUCCEEDED'`), and zero unapproved destroys; otherwise `idp.expected_revision` becomes `BLOCKED` (`blocked_reason` in `{'destroy_without_delete_request', 'approved_hash_mismatch', 'prerequisite_failed'}`). |
+| **`INV-5`** | **What was policy-checked is what gets applied** | `apply` runs the exact saved `planfile` of the same `expected_revision`; revision artifacts in GCS are written with `ifGenerationMatch=0` (create-only), with GCS `artifact_generation` and `artifact_sha256` recorded in AlloyDB (`idp.expected_revision`). |
+| **`INV-6`** | **Postgres and object storage agree on what was approved** | Before `terraform plan`, the reconciler verifies that each member's `approved_spec_sha256` in `manifest.json` equals `idp.approval.approved_spec_sha256` in AlloyDB; any mismatch blocks the revision (`blocked_reason = 'approved_hash_mismatch'`). |
+| **`INV-7`** | **A run is finished only when its Kubernetes Job is** | `idp.tf_operation.status` is set strictly from the Kubernetes Job's terminal condition (`status.succeeded` / `status.failed`) and Terraform's exit code (`tf_exit_code` `0`, `1`, `2`), never from a submission/dispatch response. |
+| **`INV-8`** | **One writer per state file** | Serialized by the per-project `StateUnitReconcilerWorkflow` (`su-gcp-<project_id>` via signal-with-start) **plus** the GCS backend's native lock (`projects/<project_id>/default.tflock`). |
+| **`INV-9`** | **A kill switch exists at two levels** | 1) Setting `idp.state_unit.status = 'frozen'` in AlloyDB immediately blocks `plan` and `apply` for that project; 2) revoking service-account impersonation on the central platform runner SA (`<runner-sa>@microdrive-dev.iam.gserviceaccount.com`) stops every executor across all projects. |
+
+### 4. Drift Severity Classification (Alert-Only)
+
+When `Expected` vs. `Observed` comparison detects an attribute difference (after excluding `resource_kind.drift_ignore_paths`), `idp.drift_finding` classifies severity by attribute family:
+
+| Severity | Attribute Family | Concrete Example | Platform Response (Override) |
+| :--- | :--- | :--- | :--- |
+| **`critical`** | Security guardrails: `public_access_prevention`, `uniform_bucket_level_access`, `default_kms_key_name` / `encryption_config.kms_key_names`, public IAM principal (`allUsers` / `allAuthenticatedUsers`) | `public_access_prevention` switched from `"enforced"` to `"inherited"` in GCP Console (`guardrail_rule_id = "GCS-PAP-001"`) | **Alert-only** (`drift_finding.status = 'OPEN'`, `severity = 'critical'`, sets `resource.sync_status = 'DRIFTED'`). Never auto-reapplies. |
+| **`high`** | Data-protection / retention policies: `retention_policy`, `soft_delete_policy`, `version_retention_period`, `backup_schedule` | Bucket `retention_policy.retention_period` shortened in Console | **Alert-only** (`severity = 'high'`). Remediation requires a new approved request. |
+| **`medium`** | Capacity, lifecycle, and non-public IAM: `storage_class`, `lifecycle_rules`, `processing_units` (when not autoscaled), `edition`, `iam_bindings` (extra group/SA granted out of band) | Spanner instance scaled from `100` to `300` processing units in Console (`attribute_path = "/processing_units"`, `expected_value = 100`, `observed_value = 300`) | **Alert-only** (`severity = 'medium'`). Remediation requires a new approved request. |
+| **`low`** | Metadata & labels: `labels`, `display_name` | `owner` label modified or removed out of band | **Alert-only** (`severity = 'low'`). Remediation requires a new approved request. |
+
+*(Note: Any drift that undoes an enforced guardrail populates `drift_finding.guardrail_rule_id`, which defaults to `critical` severity.)*
 
 ## Requirements
 
-- **REQ-1 (MUST):** All Rego policies MUST be written from scratch for SPP (`import rego.v1`) and validated against `gates/schemas/resource-request.schema.json`.
-- **REQ-2 (MUST):** Every Rego policy rule in `gates/policies/` and in per-resource `ssp-module-<type>/policies/` MUST have unit tests (`*_test.rego`) covering both passing (`0` denials) and failing (`deny`) scenarios.
-- **REQ-3 (MUST):** Per-resource repositories (`ssp-module-<type>`) MAY add stricter service-specific Rego rules in their local `policies/` directory, but MUST NOT weaken, override, or disable global rules in `gates/policies/spp_gate.rego`.
-- **REQ-4 (MUST):** `ssp-cp` MUST evaluate the global and service-specific Rego policies on every `Approved` payload before dispatching a Temporal provisioning or Day-2 workflow.
-- **REQ-5 (MUST):** Neither human engineers nor factory agents may bypass the Operations Gate (`operations_gate.approved == true`, `operations_gate.bypass_allowed == false`).
-- **REQ-6 (MUST):** Rego policies MUST evaluate Terraform plan JSON (`resource_changes[*].change.actions`) and `decommission` payloads, and MUST deny any plan or operation containing a `delete` or `replace` action unless an explicit human-in-the-loop approval record (`human_approval.approved == true`, `approver`, `approval_id`, `reason`) is attached.
-- **REQ-7 (MUST):** Factory coding-agent runs that fail any stage of `gates/scripts/run_gate.sh` MUST halt and transition to `BLOCKED` after at most **3 rework attempts**.
+- **REQ-1 (MUST):** All OPA/Rego policies MUST be authored from scratch (`import rego.v1`), evaluated at `requested`, `approved`, and `plan` stages, and recorded in `idp.policy_evaluation` with `opa_package`, `bundle_revision`, `input_sha256`, `decision`, `violations`, and `mutations`.
+- **REQ-2 (MUST):** Every guardrail mutation applied at the `Approved` gate (`GCS-*`, `SPN-*`, `LBL-*`, `PRQ-*`) MUST be recorded in `idp.approval.guardrail_trace` with `rule_id`, `path`, `from`, `to`, and `reason`.
+- **REQ-3 (MUST):** Only region **`us-east1`** (`location = "us-east1"`, Spanner `config = "regional-us-east1"`) MAY be allowed by schema and Rego in `nonprod` and `prod`; multi-region configurations (`US`, `nam3`) MUST be rejected.
+- **REQ-4 (MUST):** No deletion, destroy, or replacement of any resource may execute without explicit human approval in **any** environment (`nonprod` or `prod`). `idp.approval.status = 'AUTO_APPROVED'` and `idp.approval_decision.status = 'auto_approved'` MUST be rejected for `action = 'delete'` or plans with `destroy > 0` or `replace > 0`, and any revision with an unapproved destroy MUST be blocked with `blocked_reason = 'destroy_without_delete_request'`.
+- **REQ-5 (MUST):** All nine platform invariants (`INV-1..INV-9`) MUST be enforced by `ssp-cp` and `ssp-workers`.
+- **REQ-6 (MUST):** Drift findings in `idp.drift_finding` MUST assign severity (`critical`, `high`, `medium`, `low`) per Section 4 and MUST remain **alert-only** (never triggering an automated `terraform apply` overwrite).
 
 ## Guardrails
 
-- **GR-1:** Never import or reuse legacy "taxi" OPA policies or schemas.
-- **GR-2:** Never allow a resource to reach `Approved` state with `retention_days < 90`, `cmek_enabled != true`, `public_access_prevention != "enforced"`, or `raju_baseline_applied != true`.
-- **GR-3:** Never allow a request to proceed with `operations_gate.approved != true` or `operations_gate.bypass_allowed != false`.
-- **GR-4 (No Deletion Without Explicit Human-in-the-Loop Approval):** Never allow any resource deletion or destructive replacement (`delete` or `replace` action in a Terraform plan or `decommission` operation) without an explicit human-in-the-loop approval record verified by Rego.
-- **GR-5:** Never skip or weaken a gate check in CI to force a PR to pass.
+- **GR-1:** Never import or reuse legacy "taxi" OPA policies.
+- **GR-2:** Never allow user requests to supply or override guardrail-owned fields (`uniform_bucket_level_access`, `public_access_prevention`, `force_destroy`, `deletion_protection`, `default_kms_key_name`).
+- **GR-3:** Never allow `user:`, `allUsers`, or `allAuthenticatedUsers` in IAM bindings at any gate.
+- **GR-4:** Never auto-approve (`AUTO_APPROVED`) a resource deletion, `destroy_plan`, or Terraform plan containing `delete`/`replace` actions in **any** environment (`nonprod` or `prod`).
+- **GR-5:** Never auto-remediate drift; all drift remediation must go through a new human-approved request.
 
 ## Consequences
 
 ### Positive
 
-- Identical policy logic governs offline CI checks in `spp-factory-foundation` and live API request approval in `ssp-cp`.
-- Eliminates compliance drift, prevents Raju's scanner from deleting SPP-provisioned resources, and guarantees via Rego that no resource can be deleted or force-replaced without an explicit human approval record.
-- Codifies operations requirements upfront in Rego so standard 2.0 requests auto-verify without manual ticket bottlenecks.
+- Every policy decision and guardrail injection is auditable via `idp.policy_evaluation` and `idp.approval.guardrail_trace`.
+- Authoritative per-role IAM bindings (`iam_bindings`) ensure any out-of-band IAM grant in GCP Console surfaces immediately as a `medium` or `critical` drift finding.
+- Blocking `destroy_without_delete_request` at the `plan` gate prevents accidental resource destruction across both `nonprod` and `prod`.
 
 ### Negative / Trade-offs
 
-- Any new resource attribute added to `Requested` or `Approved` payloads requires updating `gates/schemas/resource-request.schema.json` (which sets `additionalProperties: false` at the top level) and passing all Rego unit tests.
+- Because drift is strictly alert-only, resolving even a critical guardrail drift (e.g., `public_access_prevention` changed out of band) requires submitting and approving a remediation request rather than silent background overwrite.
 
 ## Acceptance Criteria
 
-- [ ] `opa test` passes 100% on global and per-service Rego suites, including positive and negative tests for the `delete`/`replace` human-approval rule.
-- [ ] `ssp-cp` integrates schema validation and Rego policy evaluation into the `Requested -> Approved` transition pipeline, and `ssp-workers` evaluates the Terraform plan JSON against Rego before `terraform apply`.
-- [ ] Negative test cases prove that payloads with secrets, missing CMEK, `< 90`-day retention, unapproved regions (`!= "us-east1"`), `operations_gate.bypass_allowed == true`, or `delete`/`replace` plan actions without `human_approval.approved == true` are rejected.
+- [ ] `ssp-cp` implements `idp.policy_evaluation` persistence across `requested`, `approved`, and `plan` stages and populates `approval.guardrail_trace`.
+- [ ] Rego packages (`idp.gcp.gcs_bucket`, `idp.gcp.spanner_instance`, `idp.gcp.spanner_database`) enforce `GCS-*`, `SPN-*`, `LBL-*`, `PRQ-*`, `us-east1`-only location, and human-approved deletion rules.
+- [ ] `ssp-workers` enforces `INV-4..INV-9` before and during `tf_operation` execution.
 
 ## Success Criteria
 
 - **SC-1:**
-  - **Given** an `Approved` payload with `retention_days = 30` or missing `security.cmek_key_id`
-  - **When** `ssp-cp` or `conftest` evaluates `spp_gate.rego`
-  - **Then** policy evaluation fails and returns the explicit `ADR-GLB-004` / `ADR-GLB-007` denial message.
+  - **Given** a `gcs_bucket` or `spanner_instance` request submitted at the `Requested` gate
+  - **When** `RequestWorkflow` evaluates OPA at the `Approved` gate
+  - **Then** `idp.approval.guardrail_trace` records each applied rule (`GCS-UBLA-001`, `GCS-PAP-001`, `GCS-ENC-001`, `GCS-RET-001`, `GCS-SDP-001`, `GCS-DEL-001`, `LBL-001`, `PRQ-001/002` or `SPN-*`) with its `path`, `from`, `to`, and `reason`.
 - **SC-2:**
-  - **Given** a Terraform plan containing a `delete` or `replace` action without `human_approval.approved == true`, or a provisioning request with `operations_gate.approved = false`
-  - **When** evaluated by the Rego policy gate
-  - **Then** the gate denies the operation and no destructive `terraform apply` or `terraform destroy` is executed.
+  - **Given** an `Expected` revision whose `terraform plan` produces `plan_summary.destroy > 0` or `plan_summary.replace > 0` without an explicit human-approved `delete` request in `nonprod` or `prod`
+  - **When** evaluated at `stage = 'plan'`
+  - **Then** `idp.policy_evaluation.decision` is `'deny'`, `idp.expected_revision.status` is set to `'BLOCKED'` with `blocked_reason = 'destroy_without_delete_request'`, and `terraform apply` is never executed.
 
 ## Affected Repos
 
 | Repository | Impact Summary |
 | :--- | :--- |
-| `ssp-doc` | Defines the global Rego policy, verification gate architecture, and human-approval deletion guardrail |
-| `ssp-cp` | Evaluates JSON Schema and Rego policies during `Requested -> Approved` enrichment and records `human_approval` |
-| `ssp-workers` | Evaluates `terraform show -json tfplan` against Rego prior to `terraform apply` in `tf-op-<operation_id>` Jobs |
-| `ssp-module-<type>` | Supplies service-specific `policies/<service>.rego` and `policies/<service>_test.rego` |
-| `spp-factory-foundation` | Hosts the master `gates/policies/spp_gate.rego`, `resource-request.schema.json`, and `run_gate.sh` |
+| `ssp-doc` | Defines `ADR-GLB-007`, guardrail catalog, invariants `INV-1..INV-9`, and drift severity table |
+| `ssp-cp` | Evaluates `requested` and `approved` policies, populates `guardrail_trace`, and blocks `AUTO_APPROVED` deletes |
+| `ssp-workers` | Evaluates `plan` stage policies, enforces `INV-4..INV-9`, and classifies drift findings (`critical`/`high`/`medium`/`low`) |
+| `ssp-module-gcs-bucket`, `ssp-module-spanner` | Implements Rego packages (`idp.gcp.gcs_bucket`, `idp.gcp.spanner_instance`, `idp.gcp.spanner_database`) and unit tests |
+| `spp-factory-foundation` | Runs schema, Rego, and invariant checks in `gates/` |
 
 ## Open Questions
 
-- [x] **OQ-1 (Approved GCP Regions — RESOLVED 2026-10-21):** *Resolved:* `approved_regions.gcp` is **`{"us-east1"}` only** for now (replacing `us-east4` and `us-central1`).
-- [x] **OQ-2 (Complete Raju Security Rule Catalog — RESOLVED 2026-10-21):** *Resolved (Accepted MVP baseline):* For the MVP, Raju's security baseline is defined as the current enforced rule set (CMEK encryption, `>= 90`-day retention, uniform bucket-level access, `public_access_prevention = "enforced"`, approved region `us-east1`, and mandatory labels); additional per-service Raju rules are deferred to Phase 6 (Owner: Raju's team / Norm).
-- [x] **OQ-3 (Cost Gate Thresholds — RESOLVED 2026-10-21):** *Resolved:* Active cost calculation and budget threshold gates are **out of scope for the MVP**; the MVP enforces the mandatory `cost_center` label only (`ADR-AUT-002 OQ-5`).
+- [x] **OQ-1 (Approved GCP Region — OVERRIDDEN BY USER DECISION 2026-10-21):** *Resolved:* Region is **`us-east1` only** (no multi-region `US` buckets, no `nam3` Spanner, no `us-east4`), including `prod`.
+- [x] **OQ-2 (Destructive Plan Approval in Nonprod vs. Prod — OVERRIDDEN BY USER DECISION 2026-10-21):** *Resolved:* Explicit human approval is required for **any** deletion, destroy, or replace in **any** environment (`nonprod` and `prod`); no `AUTO_APPROVED` for deletes.
+- [x] **OQ-3 (Drift Response Auto-Reapply vs. Alert-Only — OVERRIDDEN BY USER DECISION 2026-10-21):** *Resolved:* Drift is **alert-only**; never auto-reapply. Remediation goes through a new approved request.
+- [ ] **OQ-4 (Unverified Source Gap for `INV-2..INV-4` Text — SOURCE GAP [Owner: Manoj]):** **Unverified (source gap):** In `gates.md` §9 (`README_2.md` §9), the table rows for `INV-2`, `INV-3`, and the beginning of `INV-4` (up to `...'plan'"); otherwise the revision becomes BLOCKED`) were `[NOT CAPTURED]` in the source photographs. From the surrounding DDL (`idp.policy_evaluation`, `idp.approval`, `idp.lifecycle_task`, `idp.expected_revision`), `INV-2..INV-4` govern `Requested -> Approved -> Expected` gate transitions (approval decision completeness, pre-apply prerequisite completion, and `stage = 'plan'` OPA allow). Exact wording of `INV-2` and `INV-3` remains unverified from the photo set.
 
 ## Related ADRs
 
-- [ADR-GLB-003: Four-State Provisioning Model and Storage Layout](ADR-GLB-003-four-state-model.md)
-- [ADR-GLB-005: Identity and Authentication](ADR-GLB-005-identity-and-authentication.md)
-- [ADR-GLB-006: Naming and Labeling Conventions](ADR-GLB-006-naming-and-labeling-conventions.md)
-- [ADR-BP-001: Ownership Map and Stakeholder Governance](../business-process/ADR-BP-001-ownership-map-and-governance.md)
-- [ADR-SVC-001: First Vertical Slice — GCS Bucket End-to-End (No UI)](../endpoint-service/ADR-SVC-001-first-vertical-slice-gcs-bucket.md)
+- [ADR-GLB-003: Four-Gate Provisioning State Model and Storage Layout](ADR-GLB-003-four-state-model.md)
+- [ADR-GLB-004: Data Model and Centralized PostgreSQL Database (AlloyDB for PostgreSQL)](ADR-GLB-004-data-model-and-database.md)
+- [ADR-GLB-006: Naming Conventions and Identifier Patterns](ADR-GLB-006-naming-and-labeling-conventions.md)
+- [ADR-GLB-008: Label and Tag Standard](ADR-GLB-008-label-and-tag-standard.md)
+- [ADR-GLB-009: Resource Kind Registry](ADR-GLB-009-resource-kind-registry.md)
+- [ADR-BP-003: Roles, Personas, and Approval Gate Governance](../business-process/ADR-BP-003-roles-and-approver-governance.md)
+- [ADR-SVC-001: GCS Bucket End-to-End and Guardrails](../endpoint-service/ADR-SVC-001-first-vertical-slice-gcs-bucket.md)
+- [ADR-SVC-002: Cloud Spanner Instance and Database Specification](../endpoint-service/ADR-SVC-002-spanner-instance-and-database.md)
+- [ADR-AUT-001: Terraform Execution via Deterministic Kubernetes Jobs](../automation/ADR-AUT-001-terraform-execution-k8s-job.md)
 - [ADR-AUT-002: Day-2 Operations Scope](../automation/ADR-AUT-002-day-2-operations-scope.md)

@@ -60,6 +60,6 @@ The same loop builds new services and migrations:
 
 ## 7. Decide before scaling the factory
 
-- Approved models for CVS content (builder, reviewer, evaluator, assistant) and the token budget per merged change.
+- Approved models for SPP content (builder, reviewer, evaluator, assistant) and the token budget per merged change.
 - Human review remains at T2/T3; the evidence pack (gates, reviewer notes, scenario scores, policy impact) is generated for every merge for audit.
 - Corpus hygiene: the sanitizer that produces `ssp-corpus` is itself T3 and reviewed by security.

@@ -1,4 +1,4 @@
-# ADR-AUT-002: Day-2 Operations Scope (Update, Resize, Upgrade, Drift Detection, Rollback, Decommission, Cost)
+# ADR-AUT-002: Day-2 Operations, Drift Detection, and Deletion Governance
 
 - **ADR ID:** ADR-AUT-002
 - **Level:** automation
@@ -10,106 +10,120 @@
 
 ## Goal
 
-Define the scope, state-transition mechanics, governance gates, and guardrails for all seven **Day-2 operations** in SPP—**update**, **resize**, **upgrade**, **drift detection**, **rollback**, **decommission**, and **cost**—orchestrated via Temporal workflows in `ssp-workers` (`platform` namespace) and executed via deterministic Kubernetes Jobs (`tf-op-<operation_id>`) and scheduled observation jobs in `spp-platform`.
+Define the Day-2 operations model (`update`, `delete`, `import`, and scheduled/on-demand drift detection), JSON-pointer drift comparison (`Expected` vs. `Observed` minus `drift_ignore_paths`), drift finding taxonomy (`out_of_band_change`, `config_divergence`, `missing_in_cloud`, `unmanaged_in_cloud`), **alert-only** drift policy (never auto-reapply), and the mandatory human-approval gate for any resource deletion, destroy, or replacement in **any** environment (`nonprod` or `prod`).
 
 ## Context
 
-A self-service infrastructure control plane cannot stop at Day-1 creation (`POST /api/v1/requests`). Once a resource reaches `Observed` state, application teams and operations require complete lifecycle management:
+From the design session (`uploads/design-digest.md`), the sanitized four-gate design package (`workflows.md`, `lifecycle.md`, `gates.md`, `raw/idp_state_model.reconstructed.sql`; see [`docs/source-provenance.md`](../../docs/source-provenance.md)), and user overrides:
 
-1. **Drift Detection & Response (Dwayne's Approach + Alert-Only in MVP):**
-   - In the design session (`uploads/design-digest.md`), Dwayne and Norm debated whether a plain `terraform plan` was sufficient for drift detection (Dwayne argued no, because out-of-band state or cloud mutations occur outside `Expected` state).
-   - **Resolved Decision (`OQ-1` & `OQ-2`):** SPP adopts **Dwayne's approach**: an **independent scheduled capture job** reads actual resource configuration directly from **GCP APIs (keyed by immutable CSP resource ID, `cloud_resource_id`)**, writes the `Observed` state to GCS (`gs://microdrive-dev-spp-tfstate/observed/<project_id>/terraform.tfstate`), and compares `Observed` vs. `Expected` (`gs://microdrive-dev-spp-tfstate/expected/<project_id>/terraform.tfstate`)—explicitly **not** `terraform plan -refresh-only`. When drift is detected (`Observed != Expected`), the MVP behavior is **ALERT ONLY (no auto-remediation in MVP)**.
-2. **Operations Gate, Persona Permissions & Human-in-the-Loop Deletion Guardrail:**
-   - Operations cannot be bypassed (Allen/Norm). Certain fields and destructive actions are restricted by persona (`operations`).
-   - **Hard Deletion Guardrail:** **No deletion or destructive replacement of any resource is permitted without explicit human-in-the-loop approval**; OPA/Rego policy gates (`ADR-GLB-007`) must deny any Terraform plan containing a `delete` or `replace` (`["delete", "create"]` / `["create", "delete"]`) action unless an explicit human approval record is present.
-3. **Day-2 Decommission, Rollback, and Cost (Accepted MVP Decisions):**
-   - **Decommission (`OQ-3` Resolved):** Refuses non-empty buckets; the owner must empty the bucket first, and `force_destroy` is **never** enabled (`force_destroy = false`). Requires explicit human-in-the-loop approval before deletion.
-   - **Rollback (`OQ-4` Resolved):** Re-applies the last known-good `Approved` specification (`approved_specs.version - 1`); attributes that GCP cannot revert in-place are flagged and never force-replaced without explicit human approval.
-   - **Cost (`OQ-5` Resolved):** Active cost calculation is **out of scope for the MVP**; the MVP enforces the mandatory `cost_center` label (`ADR-GLB-006`) only.
+1. **Every Day-2 Change Is a New Request Referring to `base_approval_id`:**
+   - In the four-gate model (`ADR-GLB-003`, `ADR-GLB-004`), `idp.request` has `action IN ('create', 'update', 'delete', 'import')` and `base_approval_id` pointing to the prior active `idp.approval`.
+   - Updating, resizing, or deleting a resource creates a new immutable `idp.request` row (`OBSERVED -> REQUESTED -> APPROVED -> EXPECTED -> OBSERVED`), never mutating a prior `request` or `approval` row.
+2. **Scheduled Drift Scans & JSON-Pointer Drift Comparison:**
+   - Temporal Schedule `drift-<project_id>` triggers `StateUnitReconcilerWorkflow` (`su-gcp-<project_id>`) with signal `drift_scan`, using the schedule window (e.g., `2026-10-23T06`) as `run_key` (`op:<state_unit_id>:r<rev>:refresh_plan:2026-10-23T06` → Kubernetes Job `tf-refresh-plan-<20hex>`).
+   - The scan runs `terraform plan -refresh-only -detailed-exitcode` (writing the snapshot to `gs://microdrive-dev-spp-tfstate/projects/<project_id>/observed/scan-<window>/plan.json` without mutating `default.tfstate` serial) and/or Cloud Asset Inventory (`source = 'asset_inventory'` keyed by `idp_resource_id` / `cloud_resource_id`).
+   - Drift is computed as a **JSON-pointer diff**: for each JSON path in the `Expected` tfvars entry, minus `idp.resource_kind.drift_ignore_paths` (e.g., `['/force_destroy']` on buckets/Spanner instances, `['/ddl', '/deletion_protection']` on Spanner databases, plus `processing_units` when Spanner `autoscaling_config` is set), the comparer checks the `Observed` projection (`idp.resource_observed.projection`). `labels` and `iam_bindings` are compared as whole maps so an out-of-band IAM member or removed label surfaces immediately as drift.
+3. **User Overrides on Drift and Deletions:**
+   - **Drift Is Strictly Alert-Only (Never Auto-Reapply):** Even for critical guardrail drift (`GCS-PAP-001`, `GCS-UBLA-001`, `GCS-ENC-001`, public IAM), SPP **never** auto-reapplies Terraform. `REMEDIATING` status and `'reapplied'` resolution from the source DDL are removed. Remediation always goes through a new human-approved `request`.
+   - **No Deletion/Destroy/Replace Without Explicit Human Approval in ANY Environment:** Neither `action = 'delete'` nor any Terraform plan with `destroy > 0` or `replace > 0` may use `AUTO_APPROVED` in `nonprod` or `prod`.
 
 ## Decision
 
-Every mutating Day-2 operation (`update`, `resize`, `upgrade`, `rollback`, `decommission`) flows through the four-state model (`Requested -> Approved -> Expected -> Observed`), generating a new versioned `approved_specs` row (`ADR-GLB-004`) and a new deterministic `operation_id` (`tf-op-<operation_id>`), while `drift_check` runs as an independent GCP API capture-and-compare workflow:
+### 1. Day-2 Request Actions & Lifecycle Transitions
 
-| # | Day-2 Operation | Operation Type (`operation_type`) | Trigger & State Flow | Governance & Guardrails |
-| :--- | :--- | :--- | :--- | :--- |
-| **1** | **Update** | `update` | Modifies non-sizing configuration or metadata (e.g., labels, lifecycle rules, retention increase). Creates a new `Requested -> Approved` spec revision and runs `tf-op-<operation_id>` to update `Expected` and `Observed`. | Must pass OPA policy gate (`spp_gate.rego`). Retention (`retention_days >= 90`) may only increase, never decrease below 90 days; CMEK cannot be disabled. Any plan with a `delete`/`replace` action is denied by Rego without an explicit human approval record. |
-| **2** | **Resize** | `resize` | Modifies capacity, performance tier, or storage class (e.g., GCS storage class transition, Spanner processing units, DB instance tier, VM machine type). Flows through `Requested -> Approved -> Expected -> Observed`. | Validated against `apm_id` application tier rules (e.g., Tier 1 cannot downsize below HA / active-active requirements) and `operations_gate`. Any `delete`/`replace` plan action is denied without a human approval record. |
-| **3** | **Upgrade** | `upgrade` | Advances a resource instance to a newer `ssp-module-<type>` catalog bundle version, provider version, or database/runtime engine version. Flows through `Requested -> Approved -> Expected -> Observed`. | Pre-apply Rego plan gate denies any unintended `delete` or `replace` action unless an explicit human approval record is attached. |
-| **4** | **Drift Detection** | `drift_check` | **Independent scheduled (or on-demand) capture job** in `ssp-workers` that reads actual resource configuration directly from **GCP APIs keyed by immutable CSP resource ID (`cloud_resource_id`)**, writes `observed/<project_id>/terraform.tfstate` in `gs://microdrive-dev-spp-tfstate`, and compares `Observed` vs. `Expected` (`expected/<project_id>/terraform.tfstate`)—**NOT** `terraform plan -refresh-only`. | **ALERT ONLY in MVP (no auto-remediation):** sets `managed_resources.drift_status = 'drifted'`, records the attribute diff in `audit_logs`, and emits an alert without running an automated `terraform apply` overwrite. |
-| **5** | **Rollback** | `rollback` | Re-applies the prior known-good `Approved` specification version (`approved_specs.version - 1`) via `tf-op-<operation_id>`. Attributes that GCP cannot revert in-place are **flagged, not forced** (never force-replaced). | Rego plan gate blocks any `delete` or `replace` action without an explicit human approval record. Records mandatory operator `reason` in `audit_logs`. |
-| **6** | **Decommission** | `decommission` | Controlled retirement and destruction (`terraform destroy` / removal from project desired set) of a managed resource. **Refuses non-empty GCS buckets (owner must empty first; never `force_destroy`)** and requires an **explicit human-in-the-loop approval record**. Transitions resource state to `decommissioned`. | Requires explicit human-in-the-loop approval record (verified by Rego before `delete` executes), `operations` persona authorization, `retention_policy.is_locked == false`, and empty bucket verification. |
-| **7** | **Cost** | `cost` | **Out of scope for the MVP.** MVP enforces the mandatory `cost_center` label (`ADR-GLB-006`) and reserves `managed_resources.estimated_monthly_cost_usd` as a schema placeholder for post-MVP. | Mandatory `cost_center` label enforced at `Requested` and `Approved` time. |
+| Action / Operation | `idp.request.action` / `tf_operation.phase` | Four-Gate Flow | Governance & Guardrails |
+| :--- | :--- | :--- | :--- |
+| **Update / Resize / Upgrade** | `action = 'update'` (`base_approval_id` set) → `plan` + `apply` | `OBSERVED -> REQUESTED -> APPROVED -> EXPECTED -> OBSERVED` | Enforces `NAM-IMM-001` (cannot rename resource). Evaluates OPA at `requested`, `approved`, and `plan`. If `plan_summary.destroy > 0` or `replace > 0`, blocks with `destroy_without_delete_request` unless explicitly approved by human approvers. |
+| **Delete / Decommission** | `action = 'delete'` (`base_approval_id` set) → `destroy_plan` + `apply` | `OBSERVED -> REQUESTED -> APPROVED -> EXPECTED -> OBSERVED` (`resource.lifecycle` `active -> deleting -> deleted`, sets `deleted_at`) | **Requires explicit human approval in BOTH `nonprod` and `prod` (never `AUTO_APPROVED`).** On `gcs_bucket`, `force_destroy` is always `false` (`GCS-DEL-001`, bucket must be emptied first). On `spanner_database`, requires human approval before `deletion_protection` can be cleared for removal. |
+| **Brownfield Import** | `action = 'import'` → `import` + `plan` | `REQUESTED -> APPROVED -> EXPECTED -> OBSERVED` (`observation.source = 'import'`) | Enforces `NAM-LEG-001`: preserves existing cloud resource name and injects label `idp_naming = "legacy"`. |
+| **Scheduled / On-Demand Drift Scan** | Temporal Schedule `drift-<project_id>` → `phase = 'refresh_plan'` (or `source = 'asset_inventory'`) | `OBSERVED -> OBSERVED` (`resource.sync_status` → `IN_SYNC` or `DRIFTED`) | Runs `terraform plan -refresh-only -detailed-exitcode` (`tf_exit_code = 2` means drift detected; does not advance `state_serial`). Writes snapshot to `gs://microdrive-dev-spp-tfstate/projects/<project_id>/observed/scan-<window>/plan.json`. **Alert-only.** |
+
+### 2. Drift Finding Taxonomy & Lifecycle (`idp.drift_finding`)
+
+- **`drift_kind` values:**
+  1. `out_of_band_change`: Refreshed cloud value differs from last-applied state (e.g., Spanner `processing_units` changed from `100` to `300` in GCP Console, or bucket `public_access_prevention` changed to `inherited`).
+  2. `config_divergence`: Current state already differs from the current `Expected` revision.
+  3. `missing_in_cloud`: Resource exists in `Expected` state (`idp.resource.lifecycle = 'active'`), but `resource_observed.exists_in_cloud = false`.
+  4. `unmanaged_in_cloud`: Cloud Asset Inventory (`source = 'asset_inventory'`) discovers a resource in a managed project lacking a matching `idp_resource_id` / active `Expected` member.
+- **`status` values (Alert-Only Override):**
+  - `OPEN` → `ACKNOWLEDGED` → `RESOLVED` or `ACCEPTED` *(partial unique index `drift_finding_open_uq` on `(resource_id, attribute_path) WHERE status IN ('OPEN', 'ACKNOWLEDGED')` prevents duplicate open findings).*
+  - *(Note: `REMEDIATING` is excluded by SPP's alert-only override.)*
+- **`resolution` values (Alert-Only Override):**
+  - `spec_updated` (resolved via a new approved `update` request that Either restores the cloud resource to match `Expected` or updates `Expected` to adopt a valid non-guardrail change)
+  - `accepted_risk` (requires explicit governance sign-off)
+  - `resource_deleted` (resolved via a new human-approved `delete` request)
+  - *(Note: `'reapplied'` via automatic background overwrite is excluded by SPP's alert-only override.)*
+- **Per-Kind `drift_ignore_paths` (`idp.resource_kind`):**
+  - `gcs_bucket`: `['/force_destroy']`
+  - `spanner_instance`: `['/force_destroy']` (plus `/processing_units` when `autoscaling_config` is non-null)
+  - `spanner_database`: `['/ddl', '/deletion_protection']` (initial DDL is owned by the application's migration pipeline after creation; `deletion_protection` is a Terraform-side guard)
 
 ## Requirements
 
-- **REQ-1 (MUST):** All mutating Day-2 operations (`update`, `resize`, `upgrade`, `rollback`, `decommission`) MUST pass through `Approved` state policy validation in `ssp-cp`, record an immutable `audit_logs` entry, and execute via a deterministic Kubernetes Job (`tf-op-<operation_id>`) in `spp-platform` orchestrated by `ssp-workers`.
-- **REQ-2 (MUST):** Drift detection (`drift_check`) MUST use an **independent scheduled capture job** that reads actual resource configuration directly from **GCP APIs keyed by immutable CSP resource ID (`cloud_resource_id`)**, writes `observed/<project_id>/terraform.tfstate` to GCS, and compares `Observed` vs. `Expected`—it MUST NOT rely on `terraform plan -refresh-only`.
-- **REQ-3 (MUST):** When `drift_check` detects `Observed != Expected`, the MVP behavior MUST be **alert-only** (`managed_resources.drift_status = 'drifted'`, diff recorded in `audit_logs`, alert emitted) with **no automated remediation (`terraform apply`)** in the MVP.
-- **REQ-4 (MUST):** OPA/Rego policy gates (`ADR-GLB-007`) MUST deny any operation or Terraform plan (`terraform show -json <planfile>`) containing a `delete` or `replace` (`["delete", "create"]` or `["create", "delete"]`) action on any resource unless an **explicit human-in-the-loop approval record** (`human_approval.approved == true`, `human_approval.approver`, `human_approval.approval_id`, `human_approval.reason`) is present.
-- **REQ-5 (MUST):** `decommission` on GCS buckets MUST refuse non-empty buckets (requiring the owner to empty the bucket first), MUST NEVER set `force_destroy = true`, MUST verify `retention_policy.is_locked == false`, MUST require an explicit human-in-the-loop approval record, and MUST update `managed_resources.current_state = 'decommissioned'` in AlloyDB (`spp_platform`).
-- **REQ-6 (MUST):** `rollback` MUST re-apply the last `Approved` specification (`approved_specs.version - 1`) and MUST flag (and refuse to force) any attribute that GCP cannot revert in-place.
-- **REQ-7 (SHOULD):** In Phase 4 of the build order (`ADR-BP-002`), Day-2 workflows (`update`, `resize`, `upgrade`, `drift_check`, `rollback`, `decommission`) SHOULD be verified end-to-end on the GCS bucket vertical slice before `ssp-ui` or additional resource types are built (with active `cost` calculation deferred out of MVP).
+- **REQ-1 (MUST):** Every mutating Day-2 action (`update`, `delete`, `import`) MUST create a new `idp.request` row referencing `base_approval_id` (for `update`/`delete`) and pass through the `Approved` and `Expected` gates.
+- **REQ-2 (MUST):** No deletion (`action = 'delete'`), `destroy_plan`, or Terraform plan with `plan_summary.destroy > 0` or `plan_summary.replace > 0` MAY be auto-approved (`AUTO_APPROVED`) in **any** environment (`nonprod` or `prod`); explicit human approval in `idp.approval_decision` is mandatory everywhere.
+- **REQ-3 (MUST):** Any `plan` for a `create` or `update` revision that produces `plan_summary.destroy > 0` or `plan_summary.replace > 0` without an explicit human-approved destructive request MUST transition `idp.expected_revision.status` to `'BLOCKED'` with `blocked_reason = 'destroy_without_delete_request'`.
+- **REQ-4 (MUST):** Scheduled drift scans (`drift-<project_id>`) MUST use the schedule window as `run_key` (e.g., `2026-10-23T06`), write `observed/scan-<window>/plan.json` to `gs://microdrive-dev-spp-tfstate`, and compare `Expected` vs. `Observed` by JSON pointer minus `resource_kind.drift_ignore_paths`.
+- **REQ-5 (MUST):** When drift is detected, `ssp-workers` MUST record `idp.observation` (`drift_detected = true`), upsert `idp.resource_observed` (if `projection_sha256` changed), insert/update `idp.drift_finding` (`status = 'OPEN'`), set `idp.resource.sync_status = 'DRIFTED'`, and emit a `drift.detected` `idp.gate_event` (**alert-only**, never auto-running `terraform apply`).
 
 ## Guardrails
 
-- **GR-1 (No Deletion Without Explicit Human-in-the-Loop Approval):** Never delete or replace any cloud resource without an explicit human-in-the-loop approval record; Rego policy gates (`ADR-GLB-007`) must deny any Terraform plan containing a `delete` or `replace` action that lacks a verified human approval record.
-- **GR-2:** Never run automated drift remediation (`terraform apply` on drift) in the MVP; drift detection is strictly **alert-only**.
-- **GR-3:** Never use `terraform plan -refresh-only` as the sole drift detection mechanism; always populate `observed/<project_id>/terraform.tfstate` from an independent GCP API capture job keyed by `cloud_resource_id`.
-- **GR-4:** Never allow a Day-2 `update` to weaken `Approved`-state security defaults (`cmek_enabled == true`, `retention_days >= 90`, `public_access_prevention == "enforced"`), and never set `force_destroy = true` on GCS buckets (decommission must refuse non-empty buckets).
+- **GR-1:** Never allow `AUTO_APPROVED` / `auto_approved` on any `delete` request or destructive plan in `nonprod` or `prod`.
+- **GR-2:** Never auto-reapply Terraform on drift; `drift_finding` is strictly alert-only, and remediation requires a new approved request.
+- **GR-3:** Never set `force_destroy = true` on `gcs_bucket` or `spanner_instance`.
+- **GR-4:** Never report drift on paths listed in `resource_kind.drift_ignore_paths` (`/force_destroy`, `/ddl`, `/deletion_protection`, or autoscaled `/processing_units`).
 
 ## Consequences
 
 ### Positive
 
-- Independent GCP API capture into `observed/<project_id>/terraform.tfstate` detects out-of-band cloud and state mutations without mutating or trusting the `Expected` Terraform state file.
-- Alert-only drift handling, `force_destroy = false`, and the Rego human-approval gate on `delete`/`replace` plans make accidental data loss or unapproved resource deletion impossible.
+- Whole-map comparison of `labels` and `iam_bindings` catches out-of-band IAM grants and label tampering that legacy systems missed.
+- Alert-only drift handling and mandatory human approval on all deletes/replaces in both `nonprod` and `prod` eliminate accidental data destruction.
 
 ### Negative / Trade-offs
 
-- Requires a GCP API reader / state-observation activity in `ssp-workers` per supported resource type (starting with `google_storage_bucket` in Phase 4) and a pre-apply `terraform plan -out=tfplan && terraform show -json tfplan` Rego evaluation step inside the `tf-op-<operation_id>` runner Job before `terraform apply` can execute.
+- Remediating out-of-band drift requires submitting and approving a new `idp.request` rather than an automated background apply.
 
 ## Acceptance Criteria
 
-- [ ] `ssp-cp` exposes API endpoints for Day-2 operations (`PATCH /api/v1/resources/{id}` for update/resize/upgrade, `POST /api/v1/resources/{id}/drift-check`, `POST /api/v1/resources/{id}/rollback`, `POST /api/v1/resources/{id}/decommission`).
-- [ ] `ssp-workers` implements the independent GCP API capture job writing `observed/<project_id>/terraform.tfstate` in `gs://microdrive-dev-spp-tfstate`, compares `Observed` vs. `Expected` by `cloud_resource_id`, and emits an alert-only drift record without auto-remediation.
-- [ ] Rego policies deny any Terraform plan containing a `delete` or `replace` action unless a verified human-in-the-loop approval record is attached, and `decommission` refuses non-empty GCS buckets (`force_destroy = false`).
+- [ ] `ssp-workers` implements `drift-<project_id>` schedules, `refresh_plan` Job execution (`tf-refresh-plan-<20hex>`), and the JSON-pointer drift comparer honoring `resource_kind.drift_ignore_paths`.
+- [ ] `ssp-cp` and `ssp-workers` block `destroy_without_delete_request` and reject `AUTO_APPROVED` for any `action = 'delete'` in both `nonprod` and `prod`.
+- [ ] `specs/examples/spanner.gates.json` drift scenario (`processing_units` changed from `100` to `300` -> `drift_kind = 'out_of_band_change'`, `severity = 'medium'`, `status = 'OPEN'`) passes validation.
 
 ## Success Criteria
 
 - **SC-1:**
-  - **Given** a provisioned GCS bucket in `Observed` state and an out-of-band change made in GCP (e.g., modifying a bucket label or storage class outside SPP)
-  - **When** the independent scheduled capture job reads the bucket from the GCP Storage API by `cloud_resource_id` and updates `observed/<project_id>/terraform.tfstate` in `gs://microdrive-dev-spp-tfstate`
-  - **Then** the comparator detects `Observed != Expected`, sets `managed_resources.drift_status = 'drifted'`, logs an alert in `audit_logs`, and performs **no** automated `terraform apply`.
+  - **Given** a non-autoscaled `spanner_instance` in `OBSERVED` state with `processing_units = 100` that is scaled out-of-band to `300` in the GCP Console
+  - **When** the `drift-<project_id>` scan runs `tf-refresh-plan-<20hex>` for window `2026-10-23T06`
+  - **Then** `tf_exit_code` is `2`, `state_serial` remains unchanged (`6 -> 6`), `idp.drift_finding` records `drift_kind = 'out_of_band_change'`, `attribute_path = '/processing_units'`, `expected_value = 100`, `observed_value = 300`, `severity = 'medium'`, `status = 'OPEN'`, and **no** auto-reapply Job is launched.
 - **SC-2:**
-  - **Given** any Terraform plan containing a `delete` or `replace` resource action without an explicit human-in-the-loop approval record (`human_approval.approved == true`), or a `decommission` request on a non-empty GCS bucket
-  - **When** evaluated by the Rego policy gate and runner pre-check
-  - **Then** the operation is denied before `terraform apply` / `terraform destroy` can execute.
+  - **Given** a `delete` request or a Terraform plan with `destroy > 0` in `nonprod` or `prod`
+  - **When** evaluated by `ApprovalGateWorkflow` and the `plan` OPA gate
+  - **Then** `AUTO_APPROVED` is forbidden and execution is blocked until explicit human approval is recorded in `idp.approval_decision`.
 
 ## Affected Repos
 
 | Repository | Impact Summary |
 | :--- | :--- |
-| `ssp-doc` | Defines the Day-2 operations scope, independent GCP API drift capture, alert-only MVP rule, and human-in-the-loop deletion guardrail |
-| `ssp-cp` | Exposes Day-2 REST endpoints, versioned `approved_specs`, human approval records, and drift alert status |
-| `ssp-workers` | Implements Temporal workflows for update, resize, upgrade, independent GCP API drift capture + alert, rollback, and decommission |
-| `ssp-ui` | Renders Day-2 action controls, human approval prompts, and drift alert badges in Phase 5 |
-| `ssp-module-<type>` | Exposes `cloud_resource_id` and enforces `force_destroy = false` |
-| `spp-factory-foundation` | Enforces `delete`/`replace` Rego denial without human approval and validates Day-2 drift rules |
+| `ssp-doc` | Defines Day-2 request actions, JSON-pointer drift comparison, alert-only policy, and universal human-approval delete guardrail |
+| `ssp-cp` | Exposes `update`, `delete`, `import`, and drift finding APIs; blocks `AUTO_APPROVED` deletes |
+| `ssp-workers` | Runs `drift-<project_id>`, `tf-refresh-plan-<20hex>`, JSON-pointer drift comparer, and `destroy_without_delete_request` check |
+| `ssp-ui` | Displays open drift findings (`idp.v_resource_status.open_drift_count`) and human delete approval workflows |
+| `ssp-module-gcs-bucket`, `ssp-module-spanner` | Enforces `force_destroy = false` and `deletion_protection = true` |
+| `spp-factory-foundation` | Verifies drift comparer against `specs/examples/spanner.gates.json` |
 
 ## Open Questions
 
-- [x] **OQ-1 (Plan-vs-Observed Drift Debate — RESOLVED 2026-10-21):** *Resolved:* Drift detection uses **Dwayne's approach**: an independent scheduled capture job reads actual resource config from GCP APIs (keyed by CSP resource ID, `cloud_resource_id`), writes `Observed` state to `gs://microdrive-dev-spp-tfstate/observed/<project_id>/terraform.tfstate`, and compares `Observed` vs. `Expected` (NOT `terraform plan -refresh-only`).
-- [x] **OQ-2 (Auto-Remediation vs. Alert-Only on Drift — RESOLVED 2026-10-21):** *Resolved:* On drift (`Observed != Expected`), the platform is **ALERT ONLY** with **no auto-remediation in the MVP**.
-- [x] **OQ-3 (Decommissioning Non-Empty or Soft-Delete GCS Buckets — RESOLVED 2026-10-21):** *Resolved:* `decommission` refuses non-empty buckets (owner must empty the bucket first), **never** sets `force_destroy = true`, and requires an explicit human-in-the-loop approval record before deletion.
-- [x] **OQ-4 (Rollback Semantics for Irreversible Cloud Changes — RESOLVED 2026-10-21):** *Resolved:* `rollback` re-applies the last `Approved` specification (`approved_specs.version - 1`); attributes that GCP cannot revert in-place are flagged and never force-replaced.
-- [x] **OQ-5 (Cost Scope & Data Source — RESOLVED 2026-10-21):** *Resolved:* Active cost calculation is **out of scope for the MVP** (MVP enforces the mandatory `cost_center` label only).
+- [x] **OQ-1 (Drift Response: Alert-Only vs. Auto-Reapply — OVERRIDDEN BY USER DECISION 2026-10-21):** *Resolved:* Drift is **alert-only**; never auto-reapply. Remediation goes through a new approved request.
+- [x] **OQ-2 (Destructive Plan Approval in Nonprod and Prod — OVERRIDDEN BY USER DECISION 2026-10-21):** *Resolved:* Explicit human approval is required for **any** deletion, destroy, or replace of any resource in **any** environment (`nonprod` and `prod`); no `AUTO_APPROVED` for deletes.
 
 ## Related ADRs
 
-- [ADR-GLB-003: Four-State Provisioning Model and Storage Layout](../global/ADR-GLB-003-four-state-model.md)
-- [ADR-GLB-004: Data Model and Database](../global/ADR-GLB-004-data-model-and-database.md)
-- [ADR-GLB-007: Governance Gates and Policy (Rego)](../global/ADR-GLB-007-governance-gates-and-policy-rego.md)
-- [ADR-AUT-001: Terraform Execution via Kubernetes Jobs](ADR-AUT-001-terraform-execution-k8s-job.md)
-- [ADR-SVC-001: First Vertical Slice — GCS Bucket End-to-End (No UI)](../endpoint-service/ADR-SVC-001-first-vertical-slice-gcs-bucket.md)
-- [ADR-BP-002: Product Build Order and Delivery Phasing](../business-process/ADR-BP-002-build-order-and-phasing.md)
+- [ADR-GLB-003: Four-Gate Provisioning State Model and Storage Layout](../global/ADR-GLB-003-four-state-model.md)
+- [ADR-GLB-004: Data Model and Centralized PostgreSQL Database (AlloyDB for PostgreSQL)](../global/ADR-GLB-004-data-model-and-database.md)
+- [ADR-GLB-007: Governance Gates, Guardrails, Invariants, and Policy (Rego)](../global/ADR-GLB-007-governance-gates-and-policy-rego.md)
+- [ADR-GLB-009: Resource Kind Registry](../global/ADR-GLB-009-resource-kind-registry.md)
+- [ADR-BP-003: Roles, Personas, and Approval Gate Governance](../business-process/ADR-BP-003-roles-and-approver-governance.md)
+- [ADR-AUT-001: Temporal Orchestration and Terraform Execution via Deterministic Kubernetes Jobs](ADR-AUT-001-terraform-execution-k8s-job.md)
+- [ADR-SVC-001: GCS Bucket End-to-End and Guardrails](../endpoint-service/ADR-SVC-001-first-vertical-slice-gcs-bucket.md)
+- [ADR-SVC-002: Cloud Spanner Instance and Database Specification](../endpoint-service/ADR-SVC-002-spanner-instance-and-database.md)

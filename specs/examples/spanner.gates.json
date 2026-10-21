@@ -1,0 +1,645 @@
+{
+  "_provenance": {
+    "status": "RECONSTRUCTED AND UNVERIFIED",
+    "source": "Sanitized hand transcription from 70 HEIC photographs of the design package 'IDP four-gate data model: GCS bucket and Spanner' (originally examples/spanner.gates.json, photos 6549-6572, draft dated 21 Oct 2026).",
+    "unverified_source_gaps": [
+      "Unverified (source gap): initial_ddl tail was [truncated] at right screen edge in photo 6550/6565 ('CREATE TABLE orders (order_id STRING(36) NOT NULL, created_at TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp...[truncated]').",
+      "Unverified (source gap): example SHA-256 hex digests in the photographed file were invalidated by sanitization and replaced with explicit placeholders; recompute with canonical_sha256() when generating live fixtures.",
+      "Unverified (source gap): legacy_equivalent section kept only as a deferred reference note per user scope override."
+    ],
+    "overrides_applied": [
+      "GCP only; region us-east1 only (location='us-east1', config='regional-us-east1', KMS key in locations/us-east1; overrides us-east4 and nam3).",
+      "Environments: only 'nonprod' and 'prod' (name token 'nonprod', no hyphen; display_name 'SPP Orders (nonprod)').",
+      "Single state bucket: gs://microdrive-dev-spp-tfstate (overrides gs://idp-tfstate-<lob>).",
+      "Kubernetes runner namespace: spp-platform (overrides idp-runners).",
+      "Drift: alert-only (status='OPEN', never auto-reapply)."
+    ]
+  },
+  "_about": "Spanner instance + one database through the four gates (Requested -> Approved -> Expected -> Observed), submitted from the IDP UI/API as one submission producing two linked requests.",
+  "submission": {
+    "table": "idp.submission",
+    "row": {
+      "submission_id": "6b2ca61d-516e-5f3f-a6ce-f31ac9c0832a",
+      "channel": "ui",
+      "source_ref": null,
+      "apm_id": "apm0017299",
+      "submitted_by": "requester@example.com",
+      "idempotency_key": "ui:7d1f0c9a-spanner-orders",
+      "raw_payload": {
+        "template": "spanner-instance-with-databases",
+        "template_version": "1.0.0",
+        "resources": [
+          {
+            "api_version": "idp.spp/v1",
+            "kind": "spanner_instance",
+            "action": "create",
+            "metadata": {
+              "apm_id": "apm0017299",
+              "project_id": "<lob>-nonprod-orders-svc",
+              "environment": "nonprod",
+              "lob": "<lob>",
+              "data_sensitivity": "restricted",
+              "data_classification": "proprietary",
+              "owner": "data.owner@example.com",
+              "shared_mailbox": "orders-team@example.com",
+              "requested_by": "requester@example.com",
+              "cost_center": "000000",
+              "tenancy": "dedicated",
+              "labels": {
+                "app": "orders"
+              }
+            },
+            "spec": {
+              "name": "<lob>-nonprod-orders",
+              "display_name": "SPP Orders (nonprod)",
+              "location": "us-east1",
+              "compute": {
+                "processing_units": 100
+              },
+              "access": [
+                {
+                  "role": "roles/spanner.viewer",
+                  "members": [
+                    "group:gcp-<lob>-nonprod-orders-dba@example.com"
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "api_version": "idp.spp/v1",
+            "kind": "spanner_database",
+            "action": "create",
+            "metadata": {
+              "apm_id": "apm0017299",
+              "project_id": "<lob>-nonprod-orders-svc",
+              "environment": "nonprod",
+              "lob": "<lob>",
+              "data_sensitivity": "restricted",
+              "data_classification": "proprietary",
+              "owner": "data.owner@example.com",
+              "shared_mailbox": "orders-team@example.com",
+              "requested_by": "requester@example.com",
+              "cost_center": "000000",
+              "tenancy": "dedicated"
+            },
+            "spec": {
+              "instance": "<lob>-nonprod-orders",
+              "name": "orders",
+              "dialect": "GOOGLE_STANDARD_SQL",
+              "version_retention_period": "1h",
+              "initial_ddl": [
+                "CREATE TABLE orders (order_id STRING(36) NOT NULL, created_at TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp=true)) /* Unverified (source gap): tail [truncated] in photo */"
+              ],
+              "access": [
+                {
+                  "role": "roles/spanner.databaseReader",
+                  "members": [
+                    "group:gcp-<lob>-nonprod-orders-read@example.com"
+                  ]
+                },
+                {
+                  "role": "roles/spanner.databaseUser",
+                  "members": [
+                    "serviceAccount:orders-api@<lob>-nonprod-orders-svc.iam.gserviceaccount.com"
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "raw_payload_sha256": "<64-hex; Unverified (source gap): source hash invalidated by sanitization>",
+      "submitted_at": "2026-10-22T10:15:00Z"
+    }
+  },
+  "instance": {
+    "requested": {
+      "document": {
+        "api_version": "idp.spp/v1",
+        "kind": "spanner_instance",
+        "action": "create",
+        "metadata": {
+          "apm_id": "apm0017299",
+          "project_id": "<lob>-nonprod-orders-svc",
+          "environment": "nonprod",
+          "lob": "<lob>",
+          "data_sensitivity": "restricted",
+          "data_classification": "proprietary",
+          "owner": "data.owner@example.com",
+          "shared_mailbox": "orders-team@example.com",
+          "requested_by": "requester@example.com",
+          "cost_center": "000000",
+          "tenancy": "dedicated",
+          "labels": {
+            "app": "orders"
+          }
+        },
+        "spec": {
+          "name": "<lob>-nonprod-orders",
+          "display_name": "SPP Orders (nonprod)",
+          "location": "us-east1",
+          "compute": {
+            "processing_units": 100
+          },
+          "access": [
+            {
+              "role": "roles/spanner.viewer",
+              "members": [
+                "group:gcp-<lob>-nonprod-orders-dba@example.com"
+              ]
+            }
+          ]
+        }
+      },
+      "db": {
+        "table": "idp.request",
+        "row": {
+          "request_id": "<uuid; Unverified (source gap)>",
+          "submission_id": "6b2ca61d-516e-5f3f-a6ce-f31ac9c0832a",
+          "resource_id": "3936dbd5-d13d-5d84-ad7a-a1e3a595f213",
+          "kind": "spanner_instance",
+          "action": "create",
+          "schema_version": "1.0.0",
+          "requested_spec_sha256": "<64-hex; Unverified (source gap)>",
+          "source_pointer": "/resources/0",
+          "status": "APPROVED",
+          "temporal_workflow_id": "req-<request_id>",
+          "requested_by": "requester@example.com",
+          "submitted_at": "2026-10-22T10:15:00Z"
+        }
+      }
+    },
+    "approved": {
+      "document": {
+        "api_version": "idp.spp/v1",
+        "kind": "spanner_instance",
+        "action": "create",
+        "metadata": {
+          "apm_id": "apm0017299",
+          "project_id": "<lob>-nonprod-orders-svc",
+          "environment": "nonprod",
+          "lob": "<lob>",
+          "data_sensitivity": "restricted",
+          "data_classification": "proprietary",
+          "owner": "data.owner@example.com",
+          "shared_mailbox": "orders-team@example.com",
+          "requested_by": "requester@example.com",
+          "cost_center": "000000",
+          "tenancy": "dedicated",
+          "labels": {
+            "app": "orders",
+            "costcenter": "000000",
+            "dataclassification": "proprietary",
+            "datasensitivity": "restricted",
+            "environmentsubtype": "nonprod",
+            "environmenttype": "nonprod",
+            "idp_resource_id": "3936dbd5-d13d-5d84-ad7a-a1e3a595f213",
+            "owner": "data_owner_example_com",
+            "primarylob": "<lob>",
+            "provisionedby": "idp",
+            "sharedemailaddress": "orders-team_example_com",
+            "sppappid": "apm0017299",
+            "tenancy": "dedicated"
+          },
+          "resolved": {
+            "app_tier": "2",
+            "environment_type": "nonprod",
+            "vpc_sc_perimeter": "<lob>_nonprod_restricted_perimeter",
+            "cost_center_validated": true,
+            "resolved_at": "2026-10-22T10:15:02Z"
+          }
+        },
+        "spec": {
+          "name": "<lob>-nonprod-orders",
+          "display_name": "SPP Orders (nonprod)",
+          "location": "us-east1",
+          "compute": {
+            "processing_units": 100
+          },
+          "access": [
+            {
+              "role": "roles/spanner.viewer",
+              "members": [
+                "group:gcp-<lob>-nonprod-orders-dba@example.com"
+              ]
+            }
+          ],
+          "config": "regional-us-east1",
+          "edition": "STANDARD",
+          "instance_type": "PROVISIONED",
+          "default_backup_schedule_type": "AUTOMATIC",
+          "force_destroy": false
+        },
+        "prerequisites": [
+          {
+            "type": "enable_service",
+            "target": "spanner.googleapis.com",
+            "rule_id": "PRQ-003",
+            "params": {
+              "project": "<lob>-nonprod-orders-svc"
+            }
+          },
+          {
+            "type": "vpc_sc_project_membership",
+            "target": "<lob>-nonprod-orders-svc",
+            "rule_id": "PRQ-004",
+            "params": {
+              "perimeter": "<lob>_nonprod_restricted_perimeter"
+            }
+          }
+        ],
+        "post_apply": [
+          {
+            "type": "cmdb_register",
+            "target": "apm0017299",
+            "provider": "ITSM",
+            "_deferred_note": "Out of scope for MVP; retained as schema placeholder only."
+          },
+          {
+            "type": "notify_owner",
+            "target": "data.owner@example.com"
+          }
+        ],
+        "approval": {
+          "request_id": "<request_id>",
+          "requested_spec_sha256": "<64-hex; Unverified (source gap)>",
+          "policy_bundle_revision": "3f9a1c2",
+          "gate_key": "spanner_data_owner",
+          "decided_at": "2026-10-22T13:20:00Z",
+          "approvers": [
+            {
+              "approver_key": "data_owner",
+              "identity": "data.owner@example.com",
+              "status": "approved",
+              "responded_at": "2026-10-22T13:20:00Z"
+            }
+          ]
+        }
+      },
+      "db": {
+        "table": "idp.approval",
+        "row": {
+          "approval_id": "<approval_id>",
+          "request_id": "<request_id>",
+          "resource_id": "3936dbd5-d13d-5d84-ad7a-a1e3a595f213",
+          "gate_key": "spanner_data_owner",
+          "gate_version": 1,
+          "status": "APPROVED",
+          "approved_spec_sha256": "<64-hex; Unverified (source gap)>",
+          "guardrail_trace": [
+            {
+              "rule_id": "SPN-CFG-001",
+              "path": "/spec/config",
+              "from": null,
+              "to": "regional-us-east1",
+              "reason": "Location us-east1 -> regional-us-east1 config (overridden from source regional-us-east4 / nam3 per SPP single-region us-east1 rule)."
+            },
+            {
+              "rule_id": "SPN-EDT-001",
+              "path": "/spec/edition",
+              "from": null,
+              "to": "STANDARD",
+              "reason": "Regional config without autoscaling => Standard edition."
+            },
+            {
+              "rule_id": "SPN-BKP-001",
+              "path": "/spec/default_backup_schedule_type",
+              "from": null,
+              "to": "AUTOMATIC",
+              "reason": "Default backup schedule on (legacy request documented NONE)."
+            },
+            {
+              "rule_id": "SPN-DEL-001",
+              "path": "/spec/force_destroy",
+              "from": null,
+              "to": false,
+              "reason": "No force destroy."
+            },
+            {
+              "rule_id": "LBL-001",
+              "path": "/metadata/labels",
+              "from": {
+                "app": "orders"
+              },
+              "to": {
+                "app": "orders",
+                "costcenter": "000000",
+                "dataclassification": "proprietary",
+                "datasensitivity": "restricted",
+                "environmentsubtype": "nonprod",
+                "environmenttype": "nonprod",
+                "idp_resource_id": "3936dbd5-d13d-5d84-ad7a-a1e3a595f213",
+                "owner": "data_owner_example_com",
+                "primarylob": "<lob>",
+                "provisionedby": "idp",
+                "sharedemailaddress": "orders-team_example_com",
+                "sppappid": "apm0017299",
+                "tenancy": "dedicated"
+              },
+              "reason": "Mandatory labels merged (legacy copied project labels instead)."
+            },
+            {
+              "rule_id": "PRQ-003",
+              "path": "/prerequisites/0",
+              "from": null,
+              "to": "enable_service",
+              "reason": "spanner.googleapis.com enabled first (legacy CheckOrEnableGcpServiceWorkflow)."
+            },
+            {
+              "rule_id": "PRQ-004",
+              "path": "/prerequisites/1",
+              "from": null,
+              "to": "vpc_sc_project_membership",
+              "reason": "Project must be inside the LOB perimeter before a restricted-data service is created."
+            }
+          ],
+          "temporal_workflow_id": "apr-<request_id>",
+          "decided_at": "2026-10-22T13:20:00Z",
+          "valid_until": "2026-11-21T13:20:00Z"
+        }
+      }
+    },
+    "expected": {
+      "tfvars_collection": "spanner_instances",
+      "tfvars_key": "<lob>-nonprod-orders",
+      "entry": {
+        "project": "<lob>-nonprod-orders-svc",
+        "name": "<lob>-nonprod-orders",
+        "display_name": "SPP Orders (nonprod)",
+        "config": "regional-us-east1",
+        "edition": "STANDARD",
+        "instance_type": "PROVISIONED",
+        "processing_units": 100,
+        "num_nodes": null,
+        "autoscaling_config": null,
+        "default_backup_schedule_type": "AUTOMATIC",
+        "labels": {
+          "app": "orders",
+          "costcenter": "000000",
+          "dataclassification": "proprietary",
+          "datasensitivity": "restricted",
+          "environmentsubtype": "nonprod",
+          "environmenttype": "nonprod",
+          "idp_resource_id": "3936dbd5-d13d-5d84-ad7a-a1e3a595f213",
+          "owner": "data_owner_example_com",
+          "primarylob": "<lob>",
+          "provisionedby": "idp",
+          "sharedemailaddress": "orders-team_example_com",
+          "sppappid": "apm0017299",
+          "tenancy": "dedicated"
+        },
+        "iam_bindings": {
+          "roles/spanner.viewer": [
+            "group:gcp-<lob>-nonprod-orders-dba@example.com"
+          ]
+        },
+        "force_destroy": false
+      },
+      "db": {
+        "expected_revision": {
+          "revision_id": "<revision_id>",
+          "state_unit_id": "<state_unit_id>",
+          "revision_no": 2,
+          "parent_revision_no": 1,
+          "artifact_uri": "gs://microdrive-dev-spp-tfstate/projects/<lob>-nonprod-orders-svc/expected/rev-000002/terraform.tfvars.json",
+          "artifact_generation": 1729600000000000,
+          "status": "APPLIED",
+          "plan_summary": {
+            "add": 5,
+            "change": 0,
+            "destroy": 0,
+            "replace": 0
+          }
+        },
+        "expected_revision_member": {
+          "revision_id": "<revision_id>",
+          "resource_id": "3936dbd5-d13d-5d84-ad7a-a1e3a595f213",
+          "approval_id": "<approval_id>",
+          "change": "added",
+          "tf_address": "module.spanner_instance[\"<lob>-nonprod-orders\"]"
+        },
+        "tf_operations": [
+          {
+            "operation_id": "op:<state_unit_id>:r2:plan:1",
+            "phase": "plan",
+            "run_key": "1",
+            "k8s_namespace": "spp-platform",
+            "k8s_job_name": "tf-plan-<20hex>",
+            "executor_identity": "idp-tf@<lob>-nonprod-orders-svc.iam.gserviceaccount.com",
+            "temporal_workflow_id": "su-gcp-<lob>-nonprod-orders-svc",
+            "status": "SUCCEEDED",
+            "tf_exit_code": 2,
+            "state_serial_before": 3,
+            "state_serial_after": 3,
+            "state_lineage": "<uuid>",
+            "logs_uri": "gs://microdrive-dev-spp-tfstate/projects/<lob>-nonprod-orders-svc/logs/tf-plan-<20hex>.log"
+          },
+          {
+            "operation_id": "op:<state_unit_id>:r2:apply:1",
+            "phase": "apply",
+            "run_key": "1",
+            "k8s_namespace": "spp-platform",
+            "k8s_job_name": "tf-apply-<20hex>",
+            "executor_identity": "idp-tf@<lob>-nonprod-orders-svc.iam.gserviceaccount.com",
+            "temporal_workflow_id": "su-gcp-<lob>-nonprod-orders-svc",
+            "status": "SUCCEEDED",
+            "tf_exit_code": 0,
+            "state_serial_before": 3,
+            "state_serial_after": 6,
+            "state_lineage": "<uuid>",
+            "logs_uri": "gs://microdrive-dev-spp-tfstate/projects/<lob>-nonprod-orders-svc/logs/tf-apply-<20hex>.log"
+          }
+        ]
+      }
+    },
+    "observed": {
+      "projection": {
+        "exists": true,
+        "tf_address": "module.spanner_instance[\"<lob>-nonprod-orders\"]",
+        "state": "READY",
+        "project": "<lob>-nonprod-orders-svc",
+        "name": "<lob>-nonprod-orders",
+        "display_name": "SPP Orders (nonprod)",
+        "config": "regional-us-east1",
+        "edition": "STANDARD",
+        "instance_type": "PROVISIONED",
+        "processing_units": 100,
+        "num_nodes": null,
+        "autoscaling_config": null,
+        "default_backup_schedule_type": "AUTOMATIC",
+        "labels": {
+          "app": "orders",
+          "costcenter": "000000",
+          "dataclassification": "proprietary",
+          "datasensitivity": "restricted",
+          "environmentsubtype": "nonprod",
+          "environmenttype": "nonprod",
+          "idp_resource_id": "3936dbd5-d13d-5d84-ad7a-a1e3a595f213",
+          "owner": "data_owner_example_com",
+          "primarylob": "<lob>",
+          "provisionedby": "idp",
+          "sharedemailaddress": "orders-team_example_com",
+          "sppappid": "apm0017299",
+          "tenancy": "dedicated"
+        },
+        "iam_bindings": {
+          "roles/spanner.viewer": [
+            "group:gcp-<lob>-nonprod-orders-dba@example.com"
+          ]
+        }
+      },
+      "db": {
+        "observation": {
+          "source": "post_apply",
+          "operation_id": "op:<state_unit_id>:r2:apply:1",
+          "state_uri": "gs://microdrive-dev-spp-tfstate/projects/<lob>-nonprod-orders-svc/default.tfstate",
+          "state_generation": 1729600100000000,
+          "state_serial": 6,
+          "drift_detected": false,
+          "captured_at": "2026-10-22T13:25:00Z"
+        },
+        "resource_observed": {
+          "resource_id": "3936dbd5-d13d-5d84-ad7a-a1e3a595f213",
+          "changed_in_observation_id": "<observation_id>",
+          "exists_in_cloud": true,
+          "cloud_resource_id": "projects/<lob>-nonprod-orders-svc/instances/<lob>-nonprod-orders",
+          "projection_sha256": "<64-hex; Unverified (source gap)>",
+          "changed_at": "2026-10-22T13:25:00Z"
+        }
+      }
+    },
+    "drift_example": {
+      "scenario": "Someone scales the instance from 100 to 300 processing units in the GCP Console.",
+      "observed_projection_override": {
+        "processing_units": 300
+      },
+      "tf_operation": {
+        "operation_id": "op:<state_unit_id>:r2:refresh_plan:2026-10-23T06",
+        "phase": "refresh_plan",
+        "run_key": "2026-10-23T06",
+        "k8s_namespace": "spp-platform",
+        "k8s_job_name": "tf-refresh-plan-<20hex>",
+        "tf_exit_code": 2,
+        "state_serial_before": 6,
+        "state_serial_after": 6,
+        "logs_uri": "gs://microdrive-dev-spp-tfstate/projects/<lob>-nonprod-orders-svc/logs/tf-refresh-plan-<20hex>.log"
+      },
+      "observation": {
+        "source": "refresh_plan",
+        "snapshot_uri": "gs://microdrive-dev-spp-tfstate/projects/<lob>-nonprod-orders-svc/observed/scan-2026-10-23T06/plan.json",
+        "drift_detected": true
+      },
+      "drift_finding": {
+        "drift_kind": "out_of_band_change",
+        "attribute_path": "/processing_units",
+        "expected_value": 100,
+        "observed_value": 300,
+        "severity": "medium",
+        "guardrail_rule_id": null,
+        "status": "OPEN"
+      }
+    }
+  },
+  "database": {
+    "requested": {
+      "source_pointer": "/resources/1"
+    },
+    "approved": {
+      "document": {
+        "metadata": {
+          "resolved": {
+            "app_tier": "2",
+            "environment_type": "nonprod",
+            "vpc_sc_perimeter": "<lob>_nonprod_restricted_perimeter",
+            "cost_center_validated": true
+          }
+        },
+        "spec": {
+          "instance": "<lob>-nonprod-orders",
+          "name": "orders",
+          "dialect": "GOOGLE_STANDARD_SQL",
+          "version_retention_period": "1h",
+          "initial_ddl": [
+            "CREATE TABLE orders (order_id STRING(36) NOT NULL, created_at TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp=true)) /* Unverified (source gap): tail [truncated] in photo */"
+          ],
+          "access": [
+            {
+              "role": "roles/spanner.databaseReader",
+              "members": [
+                "group:gcp-<lob>-nonprod-orders-read@example.com"
+              ]
+            },
+            {
+              "role": "roles/spanner.databaseUser",
+              "members": [
+                "serviceAccount:orders-api@<lob>-nonprod-orders-svc.iam.gserviceaccount.com"
+              ]
+            }
+          ],
+          "kms_key_names": [
+            "projects/<lob>-kms-nonprod/locations/us-east1/keyRings/<lob>-nonprod-use1/cryptoKeys/spanner-default"
+          ],
+          "deletion_protection": true,
+          "enable_drop_protection": true,
+          "backup_schedule": null
+        }
+      },
+      "guardrail_trace": [
+        {
+          "rule_id": "SPN-ENC-001",
+          "path": "/spec/kms_key_names",
+          "from": null,
+          "to": [
+            "projects/<lob>-kms-nonprod/locations/us-east1/keyRings/<lob>-nonprod-use1/cryptoKeys/spanner-default"
+          ],
+          "reason": "CMEK key in us-east1 to match regional-us-east1 (overridden from source us-east4)."
+        },
+        {
+          "rule_id": "SPN-DEL-002",
+          "path": "/spec/deletion_protection",
+          "from": null,
+          "to": true,
+          "reason": "Terraform-side delete guard (carried over from legacy)."
+        },
+        {
+          "rule_id": "SPN-BKP-002",
+          "path": "/spec/backup_schedule",
+          "from": null,
+          "to": null,
+          "reason": "Tier 2 nonprod: instance AUTOMATIC default is enough; Tier 1 / prod gets an explicit schedule."
+        }
+      ]
+    },
+    "expected": {
+      "tfvars_collection": "spanner_databases",
+      "tfvars_key": "<lob>-nonprod-orders/orders",
+      "entry": {
+        "project": "<lob>-nonprod-orders-svc",
+        "instance": "<lob>-nonprod-orders",
+        "name": "orders",
+        "database_dialect": "GOOGLE_STANDARD_SQL",
+        "version_retention_period": "1h",
+        "encryption_config": {
+          "kms_key_names": [
+            "projects/<lob>-kms-nonprod/locations/us-east1/keyRings/<lob>-nonprod-use1/cryptoKeys/spanner-default"
+          ]
+        },
+        "deletion_protection": true,
+        "enable_drop_protection": true,
+        "ddl": [
+          "CREATE TABLE orders (order_id STRING(36) NOT NULL, created_at TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp=true)) /* Unverified (source gap): tail [truncated] in photo */"
+        ],
+        "backup_schedule": null,
+        "iam_bindings": {
+          "roles/spanner.databaseReader": [
+            "group:gcp-<lob>-nonprod-orders-read@example.com"
+          ],
+          "roles/spanner.databaseUser": [
+            "serviceAccount:orders-api@<lob>-nonprod-orders-svc.iam.gserviceaccount.com"
+          ]
+        }
+      }
+    }
+  }
+}

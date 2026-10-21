@@ -4,7 +4,7 @@ Source: design session, Norm / Manoj / Dwayne, October 2026 (transcript in the p
 
 | # | Area | Decision | Rationale recorded in session | ADR |
 |---|---|---|---|---|
-| D-01 | Control plane cloud | **GCP.** AWS rejected as home cloud. | AWS is the smallest footprint; Aetna customer-facing stack lives there; the platform that runs everything should not live in the smallest cloud. | G-0001 |
+| D-01 | Control plane cloud | **GCP.** AWS rejected as home cloud. | AWS is the smallest footprint; customer-facing stack lives there; the platform that runs everything should not live in the smallest cloud. | G-0001 |
 | D-02 | State model | **Four states:** Requested → Approved → Expected → Observed. Drift = Expected vs Observed. | Clean separation of intent, policy, plan and reality. | G-0002 |
 | D-03 | Requested + Approved storage | **Centralized Postgres in GCP.** No secrets stored. | Transactional, queryable, auditable. | G-0002 |
 | D-04 | Approved definition | Approved = request **plus enforced guardrails** (CMEK, retention, security requirements). | Approval is policy application. | G-0002 |
