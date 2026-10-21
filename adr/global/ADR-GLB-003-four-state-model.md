@@ -34,7 +34,7 @@ During the architecture design session (`uploads/design-digest.md`), the team ev
    - **`Requested` (PostgreSQL):** The user's or API caller's raw request metadata. Written synchronously by `ssp-cp` directly to centralized PostgreSQL in GCP. Does **not** go through Temporal on write, and contains **zero secrets**.
    - **`Approved` (PostgreSQL):** The immutable, policy-enriched specification produced by `ssp-cp` after injecting mandatory guardrails (CMEK key reference, `retention_days >= 90`, `public_access_prevention = "enforced"`, Raju security baseline flags, APM ID tier defaults, standard resource naming, mandatory labels, and `operations_gate` approval, plus non-blocking post-MVP interface placeholder fields for ServiceNow/CMDB) and passing OPA validation. Contains **zero secrets**.
    - **`Expected` (GCS):** The desired deployed Terraform state written by the Kubernetes Job runner after `terraform apply`. May contain secrets injected post-approval during execution. Stored at `expected/<project-id>/terraform.tfstate`.
-   - **`Observed` (GCS):** The actual cloud state captured from GCP by resource ID for drift comparison against `Expected`. Stored at `observed/<project-id>/terraform.tfstate`.
+   - **`Observed` (GCS):** The actual cloud state captured by an independent scheduled (and post-apply) capture job that reads actual resource configuration directly from **GCP APIs keyed by immutable CSP resource ID (`cloud_resource_id`)** and writes to `observed/<project-id>/terraform.tfstate` for comparison against `Expected` (explicitly **not** `terraform plan -refresh-only`; on drift, the MVP is **alert-only** with no auto-remediation, per `ADR-AUT-002`).
 2. **State Granularity & Bucket Placement:**
    - **One state file per 2.0 GCP project** (never per-resource or per-category).
    - **Two folders per state bucket:** `expected/<project-id>/terraform.tfstate` and `observed/<project-id>/terraform.tfstate`.
@@ -70,7 +70,7 @@ During the architecture design session (`uploads/design-digest.md`), the team ev
 ## Acceptance Criteria
 
 - [ ] `ssp-cp` persists `Requested` and `Approved` records in PostgreSQL and validates both against the canonical JSON Schema and Rego secret-scanning rules.
-- [ ] `ssp-workers` configures the Terraform GCS backend for `Expected` state at `gs://microdrive-dev-spp-tfstate/expected/<project-id>/terraform.tfstate` and writes/refreshes `Observed` state at `gs://microdrive-dev-spp-tfstate/observed/<project-id>/terraform.tfstate`.
+- [ ] `ssp-workers` configures the Terraform GCS backend for `Expected` state at `gs://microdrive-dev-spp-tfstate/expected/<project-id>/terraform.tfstate` and runs an independent GCP API capture job (keyed by `cloud_resource_id`) to write `Observed` state at `gs://microdrive-dev-spp-tfstate/observed/<project-id>/terraform.tfstate`.
 - [ ] OPA policy rules enforce `state_backend.expected_key == "expected/<project_id>/terraform.tfstate"` and `state_backend.observed_key == "observed/<project_id>/terraform.tfstate"`.
 
 ## Success Criteria
