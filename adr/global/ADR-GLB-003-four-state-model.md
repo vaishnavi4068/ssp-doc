@@ -32,7 +32,7 @@ During the architecture design session (`uploads/design-digest.md`), the team ev
 
 1. **Four Canonical States:**
    - **`Requested` (PostgreSQL):** The user's or API caller's raw request metadata. Written synchronously by `ssp-cp` directly to centralized PostgreSQL in GCP. Does **not** go through Temporal on write, and contains **zero secrets**.
-   - **`Approved` (PostgreSQL):** The immutable, policy-enriched specification produced by `ssp-cp` after injecting mandatory guardrails (CMEK key reference, `retention_days >= 90`, `public_access_prevention = "enforced"`, Raju security baseline flags, APM ID tier defaults, standard resource naming, mandatory labels, ServiceNow record ID, and CMDB CI metadata) and passing OPA validation. Contains **zero secrets**.
+   - **`Approved` (PostgreSQL):** The immutable, policy-enriched specification produced by `ssp-cp` after injecting mandatory guardrails (CMEK key reference, `retention_days >= 90`, `public_access_prevention = "enforced"`, Raju security baseline flags, APM ID tier defaults, standard resource naming, mandatory labels, and `operations_gate` approval, plus non-blocking post-MVP interface placeholder fields for ServiceNow/CMDB) and passing OPA validation. Contains **zero secrets**.
    - **`Expected` (GCS):** The desired deployed Terraform state written by the Kubernetes Job runner after `terraform apply`. May contain secrets injected post-approval during execution. Stored at `expected/<project-id>/terraform.tfstate`.
    - **`Observed` (GCS):** The actual cloud state captured from GCP by resource ID for drift comparison against `Expected`. Stored at `observed/<project-id>/terraform.tfstate`.
 2. **State Granularity & Bucket Placement:**

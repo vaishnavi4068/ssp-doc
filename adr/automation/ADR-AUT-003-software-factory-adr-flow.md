@@ -24,7 +24,7 @@ In the design discussion (`uploads/design-digest.md` §6) and the deployed `spp-
 
 1. **Five-Level ADR Input Hierarchy (`ssp-doc/adr/` & `ssp-cp`):**
    - **Level 1 — `global` (`adr/global/`):** Platform-wide invariants (global overview, languages/stack, 4-state model, data model/Postgres, Workload Identity/auth, naming/labeling, OPA/Rego gates).
-   - **Level 2 — `business-process` (`adr/business-process/`):** Stakeholder ownership map, ServiceNow/CMDB governance, persona rules, and product build order.
+   - **Level 2 — `business-process` (`adr/business-process/`):** Stakeholder ownership map, operations governance, persona rules, and product build order.
    - **Level 3 — `endpoint-service` (`adr/endpoint-service/` & `ssp-cp`):** Per-service specifications (first vertical slice GCS bucket in `ssp-doc` and detailed GCS, Spanner, VM, API, and DB migration ADRs in `ssp-cp`).
    - **Level 4 — `per-cloud` (`adr/per-cloud/gcp/`):** Runtime platform on GCP (`md-dev`) and GCP 2.0 target architecture (`adr/per-cloud/` kept extensible for future clouds).
    - **Level 5 — `automation` (`adr/automation/`):** Deterministic K8s Job Terraform execution, Day-2 operations scope, and this factory ADR flow.

@@ -22,8 +22,8 @@
 # Level 1: Global ADRs (Architecture, Languages, State, Data Model, Identity, Naming, Rego Gates)
 /adr/global/                    @vaishnavi4068 @manoj-todo @dwayne-todo @norm-todo
 
-# Level 2: Business Process ADRs (Ownership Map, ITSM/CMDB, APM Tiering, Build Order)
-# TODO: Add @ken-oconnor-todo (ServiceNow/CMDB) and @karen-todo / @allen-todo (Operations)
+# Level 2: Business Process ADRs (Ownership Map, Operations Governance, APM Tiering, Build Order)
+# TODO: Add @karen-todo / @allen-todo (Operations)
 /adr/business-process/          @vaishnavi4068 @manoj-todo @dwayne-todo @norm-todo
 
 # Level 3: Endpoint / Service ADRs (First Vertical Slice: GCS Bucket, etc.)

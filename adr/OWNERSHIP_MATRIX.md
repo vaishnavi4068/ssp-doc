@@ -13,7 +13,7 @@ Every ADR in `ssp-doc` requires a tracked owner consisting of **both** a shared 
 | **Lead Engineers / Code Owners** | **Norm**, **Manoj** | `@norm-todo`, `@manoj-todo` | `spp-engineering@tbd` | Code and technical design ownership across `ssp-doc`, `ssp-cp`, `ssp-workers`, `ssp-ui`, and `ssp-module-<type>` |
 | **Service Accounts in `microdrive-dev` (Non-Prod)** | **SPP Team** | `@vaishnavi4068` | `spp-engineering@tbd` | Provides and owns the `spp-platform` runner GCP Service Account (`<runner-sa>@microdrive-dev.iam.gserviceaccount.com`, `TODO: vaishnavi4068`) and Workload Identity bindings in `microdrive-dev` |
 | **Enterprise Clusters & Future Prod Service Accounts** | **Hurley** | `@hurley-todo` | `spp-cloud-iam@tbd` | Enterprise cluster issuance and future production environment/APM ID provisioning outside `microdrive-dev` |
-| **ServiceNow / CMDB** | **Ken O'Connor** *(plus Stephanie)* | `@ken-oconnor-todo` | `spp-itsm-cmdb@tbd` | ServiceNow request (`REQ*`), Change Request (`CHG*`), and incident API integration; CMDB CI registration and non-VM CI classes |
+| **ServiceNow / CMDB (Post-MVP Placeholder)** | **Ken O'Connor** *(plus Stephanie)* | `@ken-oconnor-todo` | `spp-itsm-cmdb@tbd` | Out of scope for `microdrive-dev` MVP (interface placeholder only; live ServiceNow/CMDB integration deferred post-MVP) |
 | **Security** | **Raju's team** *(plus Durant)* | `@raju-security-todo` | `spp-security@tbd` | Security baseline rules injected in `Approved` state (CMEK, `>= 90d` retention, public access prevention) so Raju's scanner never deletes SPP resources |
 | **Operations & DBA** | **Allen**, **Karen**, **Norm** | `@allen-todo`, `@karen-todo`, `@norm-todo` | `spp-operations@tbd` | Non-bypassable Operations Gate (`ADR-GLB-007`), database operational rules, Jenkins DBA post-build criteria, persona permissions |
 | **Networking / CIDR / Infoblox** | **John Simon** | `@john-simon-todo` | `spp-network@tbd` | IP/CIDR range allocation and Infoblox integration for 2.0 GCP projects |
@@ -32,7 +32,7 @@ Every ADR in `ssp-doc` requires a tracked owner consisting of **both** a shared 
 | **ADR-GLB-005** | `global` | Identity, Workload Identity, and Authentication | Manoj | `spp-security@tbd` | Manoj, Dwayne, Norm, Raju | Proposed (Unsigned) |
 | **ADR-GLB-006** | `global` | Naming and Labeling Conventions | Manoj | `spp-architecture@tbd` | Manoj, Dwayne, Norm | Proposed (Unsigned) |
 | **ADR-GLB-007** | `global` | Governance Gates and Policy (Rego) | Manoj | `spp-policy@tbd` | Manoj, Dwayne, Norm, Raju, Allen/Karen | Proposed (Unsigned) |
-| **ADR-BP-001** | `business-process` | Ownership Map, Stakeholder Governance, and ITSM/CMDB Integration | Norm | `spp-governance@tbd` | Manoj, Dwayne, Norm, Allen/Karen, Ken O'Connor, Raju | Proposed (Unsigned) |
+| **ADR-BP-001** | `business-process` | Ownership Map and Stakeholder Governance | Norm | `spp-governance@tbd` | Manoj, Dwayne, Norm, Allen/Karen, Raju | Proposed (Unsigned) |
 | **ADR-BP-002** | `business-process` | Product Build Order and Delivery Phasing | Manoj | `spp-architecture@tbd` | Manoj, Dwayne, Norm | Proposed (Unsigned) |
 | **ADR-SVC-001** | `endpoint-service` | First Vertical Slice — GCS Bucket End-to-End (No UI) | Manoj | `spp-storage-gcp@tbd` | Manoj, Dwayne, Norm, Raju | Proposed (Unsigned) |
 | **ADR-CLD-GCP-001** | `per-cloud (gcp)` | Runtime Platform (GKE `md-dev`, Tainted `spp-pool`, Namespaces, and Self-Hosted Temporal) | Manoj | `spp-cloud-gcp@tbd` | Manoj, Dwayne, Norm | Proposed (Unsigned) |

@@ -31,9 +31,7 @@ In the design discussion (`uploads/design-digest.md`) and build order (`ADR-BP-0
      - `state_backend` (`bucket = "microdrive-dev-spp-tfstate"`, `expected_key = "expected/<project_id>/terraform.tfstate"`, `observed_key = "observed/<project_id>/terraform.tfstate"`)
      - `application_tier` (resolved from `apm_id`)
      - `security` (`cmek_enabled = true`, `cmek_key_id`, `retention_days >= 90` [`retention_period >= 7776000` seconds], `public_access_prevention = "enforced"`, `raju_baseline_applied = true`, `uniform_bucket_level_access = true`, `versioning_enabled = true`)
-     - `servicenow` (`record_id = "REQ..."`, plus `change_request_id = "CHG..."` if `prod`)
-     - `cmdb` (`ci_class = "cmdb_ci_cloud_storage_bucket"`, `registration_required = true`)
-     - `operations_gate` (`approved = true`, `bypass_allowed = false`)
+     - `operations_gate` (`approved = true`, `bypass_allowed = false`; ServiceNow and CMDB fields are populated only as static schema placeholders for `gates/schemas/resource-request.schema.json` compatibility—no external ServiceNow/CMDB calls or mock adapters are invoked in the `microdrive-dev` MVP)
      `ssp-cp` evaluates the OPA policy suite (`spp_gate.rego` + `gcs_bucket.rego`) and persists the immutable `Approved` record in PostgreSQL.
    - **Step 3 (`Expected`):** `ssp-cp` starts the provisioning workflow on the `platform` Temporal namespace (`temporal-frontend.spp-temporal.svc.cluster.local:7233`). `ssp-workers` launches deterministic Kubernetes Job `tf-op-<operation_id>` in namespace `spp-platform` (on node pool `spp-pool`), which runs `terraform init` and `terraform apply` against the GCS bucket module and writes `Expected` state to `gs://microdrive-dev-spp-tfstate/expected/<project_id>/terraform.tfstate`.
    - **Step 4 (`Observed`):** Following apply, the runner captures/refreshes the actual cloud state by immutable GCS bucket resource ID (`outputs.cloud_resource_id`), writes `Observed` state to `gs://microdrive-dev-spp-tfstate/observed/<project_id>/terraform.tfstate`, and `ssp-workers` updates the request status in `ssp-cp` to `observed`.

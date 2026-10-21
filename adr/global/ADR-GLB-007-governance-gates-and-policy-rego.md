@@ -10,7 +10,7 @@
 
 ## Goal
 
-Establish a clean-slate Open Policy Agent (`OPA` / `Rego`) governance framework and deterministic verification gate architecture—with zero policy reuse from legacy "taxi"—that enforces security defaults (CMEK, `>= 90`-day retention, Raju baseline, no secrets), approved GCP regions, naming/labeling rules, and the non-bypassable Operations Gate both in CI (`spp-factory-foundation/gates/`) and at runtime (`ssp-cp`).
+Establish a clean-slate Open Policy Agent (`OPA` / `Rego`) governance framework and deterministic verification gate architecture—with zero policy reuse from legacy "taxi"—that enforces security defaults (CMEK, `>= 90`-day retention, Raju baseline, no secrets), approved GCP regions (`us-east1`), naming/labeling rules, and the non-bypassable Operations Gate both in CI (`spp-factory-foundation/gates/`) and at runtime (`ssp-cp`).
 
 ## Context
 
@@ -18,7 +18,7 @@ From the design discussion (`uploads/design-digest.md`) and `spp-factory-foundat
 
 1. **Clean-Slate OPA Rules:** The team explicitly decided: "We definitely would do our own OPA rules" evaluated against SPP's own JSON Schema, reusing nothing from legacy "taxi".
 2. **Preventing Raju Auto-Deletions via `Approved` State Enrichment:** Today, Raju's security compliance system deletes non-compliant cloud resources without warning. SPP prevents this by injecting Raju's security baseline—including Customer-Managed Encryption Keys (`CMEK`), `>= 90`-day retention (`retention_days >= 90`), and `public_access_prevention = "enforced"`—into the `Approved` state and verifying compliance with OPA before Terraform executes.
-3. **Operations Cannot Be Bypassed:** Allen set the non-negotiable organizational rule (championed by Norm and Karen) that **operations cannot be bypassed**. Every `Approved` payload must satisfy the Operations Gate (`operations_gate.approved == true`, `operations_gate.bypass_allowed == false`), carry a ServiceNow request record (`servicenow.record_id`), require a ServiceNow Change Request (`servicenow.change_request_id`) when `environment == "prod"`, and require CMDB CI registration (`cmdb.registration_required == true`, non-empty `cmdb.ci_class`).
+3. **Operations Cannot Be Bypassed:** Allen set the non-negotiable organizational rule (championed by Norm and Karen) that **operations cannot be bypassed**. Every `Approved` payload must satisfy the Operations Gate (`operations_gate.approved == true`, `operations_gate.bypass_allowed == false`). *(Note: ServiceNow and CMDB fields are retained as non-blocking schema placeholders for future post-MVP integration and are out of scope as active gates in the `microdrive-dev` MVP, per `ADR-BP-001`.)*
 4. **7-Stage Automated Factory Gate with Bounded Rework:** In `spp-factory-foundation`, every ADR, schema, policy, and module PR must pass the 7-stage verification gate (`gates/scripts/run_gate.sh`). If a gate check fails during a factory run, the agent may retry at most **3 times** before the work item transitions to **`BLOCKED`** for human escalation.
 
 ## Decision
@@ -41,7 +41,7 @@ From the design discussion (`uploads/design-digest.md`) and `spp-factory-foundat
    - **Approved GCP Regions:** `approved_regions.gcp = {"us-east1"}` (`us-east1` only for now).
    - **`Approved`-State Security Baseline:** `security.cmek_enabled == true`, non-empty `security.cmek_key_id`, `security.retention_days >= 90`, `security.public_access_prevention == "enforced"`, `security.raju_baseline_applied == true`.
    - **`Approved`-State Storage & Identity:** `state_backend.expected_key == "expected/<project_id>/terraform.tfstate"`, `state_backend.observed_key == "observed/<project_id>/terraform.tfstate"`, and `service_account_email` contains `project_id`.
-   - **`Approved`-State Operations & ITSM Gate:** `servicenow.record_id` matches `^REQ[0-9]{7,10}$`; for `environment == "prod"`, `servicenow.change_request_id` matches `^CHG[0-9]{7,10}$`; `cmdb.registration_required == true` and `cmdb.ci_class` non-empty; `operations_gate.approved == true` and `operations_gate.bypass_allowed == false`.
+   - **`Approved`-State Operations Gate:** `operations_gate.approved == true` and `operations_gate.bypass_allowed == false` (with `servicenow` and `cmdb` blocks carried only as static schema placeholders in the MVP; live ServiceNow/CMDB gating is deferred post-MVP per `ADR-BP-001`).
 
 ## Requirements
 
@@ -56,7 +56,7 @@ From the design discussion (`uploads/design-digest.md`) and `spp-factory-foundat
 
 - **GR-1:** Never import or reuse legacy "taxi" OPA policies or schemas.
 - **GR-2:** Never allow a resource to reach `Approved` state with `retention_days < 90`, `cmek_enabled != true`, `public_access_prevention != "enforced"`, or `raju_baseline_applied != true`.
-- **GR-3:** Never allow a production (`environment == "prod"`) operation to proceed without a valid `servicenow.change_request_id` (`^CHG[0-9]{7,10}$`).
+- **GR-3:** Never allow a request to proceed with `operations_gate.approved != true` or `operations_gate.bypass_allowed != false`.
 - **GR-4:** Never skip or weaken a gate check in CI to force a PR to pass.
 
 ## Consequences
@@ -75,7 +75,7 @@ From the design discussion (`uploads/design-digest.md`) and `spp-factory-foundat
 
 - [ ] `opa test` passes 100% on global and per-service Rego suites.
 - [ ] `ssp-cp` integrates schema validation and Rego policy evaluation into the `Requested -> Approved` transition pipeline.
-- [ ] Negative test cases prove that payloads with secrets, missing CMEK, `< 90`-day retention, missing `CHG*` in `prod`, or `operations_gate.bypass_allowed == true` are rejected.
+- [ ] Negative test cases prove that payloads with secrets, missing CMEK, `< 90`-day retention, unapproved regions (`!= "us-east1"`), or `operations_gate.bypass_allowed == true` are rejected.
 
 ## Success Criteria
 
@@ -84,7 +84,7 @@ From the design discussion (`uploads/design-digest.md`) and `spp-factory-foundat
   - **When** `ssp-cp` or `conftest` evaluates `spp_gate.rego`
   - **Then** policy evaluation fails and returns the explicit `ADR-GLB-004` / `ADR-GLB-007` denial message.
 - **SC-2:**
-  - **Given** a `prod` provisioning request missing `servicenow.change_request_id`
+  - **Given** a provisioning request with `operations_gate.approved = false` or `operations_gate.bypass_allowed = true`
   - **When** `ssp-cp` attempts to transition the request to `Approved`
   - **Then** the Operations Gate denies the transition and no Temporal workflow or Kubernetes Job is launched.
 

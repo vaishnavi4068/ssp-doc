@@ -28,7 +28,7 @@ In the design discussion between Dwayne, Norm, and Manoj (`uploads/design-digest
 3. **Four-State Provisioning Model:** Represent every resource lifecycle through four states—`Requested` and `Approved` in centralized PostgreSQL (dedicated AlloyDB for PostgreSQL in GCP, zero secrets), and `Expected` and `Observed` in Google Cloud Storage (`ADR-GLB-003`, `ADR-GLB-004`).
 4. **Identity & Blast-Radius Isolation:** Use GKE Workload Identity with zero static keys, and enforce **one dedicated service account per target GCP project** impersonated by a central platform service account ("kill button") (`ADR-GLB-005`).
 5. **Execution Architecture:** Orchestrate post-approval execution, post-build bootstrap, and Day-2 operations in self-hosted Temporal (`platform` namespace), where workers (`ssp-workers`) launch **one deterministic Kubernetes Job per Terraform run** (`tf-op-<operation_id>`) in `spp-platform` (`ADR-AUT-001`, `ADR-AUT-002`).
-6. **Governance & Non-Bypassable Operations:** Enforce clean-slate OPA/Rego policies against SPP's canonical JSON Schema (`ADR-GLB-007`), mandatory ServiceNow request/CR/incident tracking, mandatory CMDB CI registration, and Allen/Norm's directive that **operations cannot be bypassed** (`ADR-BP-001`).
+6. **Governance & Non-Bypassable Operations:** Enforce clean-slate OPA/Rego policies against SPP's canonical JSON Schema (`ADR-GLB-007`) and Allen/Norm's directive that **operations cannot be bypassed** (`ADR-BP-001`; ServiceNow and CMDB integrations are out of scope for the `microdrive-dev` MVP and kept as a post-MVP interface placeholder only).
 7. **Repository Topology:** Split the product across `ssp-doc`, `ssp-cp`, `ssp-workers`, `ssp-ui`, and `ssp-module-<type>` (e.g., `ssp-module-spanner`, `ssp-module-gcs`), orchestrated by `spp-factory-foundation` (`docs/repo-map.md`).
 
 ## Requirements
@@ -43,7 +43,7 @@ In the design discussion between Dwayne, Norm, and Manoj (`uploads/design-digest
 ## Guardrails
 
 - **GR-1:** Never store secrets in `Requested` or `Approved` records in centralized PostgreSQL.
-- **GR-2:** Never bypass operations gates, ServiceNow change tracking, or CMDB CI registration.
+- **GR-2:** Never bypass operations gates (`operations_gate.approved == true`, `operations_gate.bypass_allowed == false`).
 - **GR-3:** Never execute Terraform directly inside the long-lived Temporal worker process; always spawn an isolated Kubernetes Job per run.
 - **GR-4:** Never onboard oversized 1.0 legacy projects (e.g., CAP ~8,000 resources) into standard 2.0 single-state-file workflows without an explicit decomposition/shim ADR.
 

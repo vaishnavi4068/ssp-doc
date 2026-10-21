@@ -17,7 +17,7 @@ Define deterministic naming patterns and mandatory governance labels across all 
 In the design discussion (`uploads/design-digest.md`) and the factory gate (`spp-factory-foundation/gates/policies/spp_gate.rego` and `gates/schemas/resource-request.schema.json`):
 
 1. **Business Context via `apm_id`:** Manoj described SPP as a "business control plane for applications": given an `apm_id`, the platform resolves the application's tier (e.g., Tier 1 requires active-active databases), cost center, and security defaults.
-2. **Mandatory Governance Labels:** Every resource in `Requested` and `Approved` state and every Terraform module must carry a standardized label set (`apm_id`, `cost_center`, `environment`, `owner`, `data_classification`, plus `managed_by = "spp"`) to satisfy operations, CMDB registration, cost attribution, and Raju's security scanner.
+2. **Mandatory Governance Labels:** Every resource in `Requested` and `Approved` state and every Terraform module must carry a standardized label set (`apm_id`, `cost_center`, `environment`, `owner`, `data_classification`, plus `managed_by = "spp"`) to satisfy operations, cost attribution, and Raju's security scanner.
 3. **Deterministic Naming:** Both GCP resources and Kubernetes execution Jobs (`tf-op-<operation_id>` in `spp-platform`, `factory-wi-<work_item_id>-<station>[-attempt]` in `spp-factory`) require deterministic, collision-free naming. As noted in `uploads/design-digest.md` (§11), the enterprise 2.0 resource naming standard was referenced indirectly in the transcript, so the platform enforces a canonical GCP placeholder pattern (`^gcp-[a-z0-9]+-(sandbox|dev|nonprod|prod)-[a-z0-9-]+$`) pending final enterprise naming sign-off.
 
 ## Decision
@@ -32,9 +32,9 @@ In the design discussion (`uploads/design-digest.md`) and the factory gate (`spp
 
    | Label Key | Format / Allowed Values | Example | Purpose |
    | :--- | :--- | :--- | :--- |
-   | `apm_id` | `^apm-[0-9]{4,8}$` (label) / `^APM-[0-9]{4,8}$` (top-level field) | `apm-1042` (`APM-1042`) | Links resource to enterprise application portfolio, tier, and CMDB CI |
+   | `apm_id` | `^apm-[0-9]{4,8}$` (label) / `^APM-[0-9]{4,8}$` (top-level field) | `apm-1042` (`APM-1042`) | Links resource to enterprise application portfolio and criticality tier |
    | `cost_center` | `^cc-[0-9]{3,8}$` | `cc-4410` | Financial chargeback and Day-2 cost attribution |
-   | `environment` | `sandbox \| dev \| nonprod \| prod` | `dev` | Drives ServiceNow CR requirements (`prod`) and policy rules |
+   | `environment` | `sandbox \| dev \| nonprod \| prod` | `dev` | Drives environment-scoped operations and policy rules |
    | `owner` | Non-empty string (`>= 2` chars, lowercase/hyphen for GCP labels) | `platform-storage-team` | Accountable engineering/operations team |
    | `data_classification` | `public \| internal \| confidential \| restricted \| phi \| pii` | `confidential` | Drives CMEK, retention, and residency controls |
    | `managed_by` | `"spp"` (injected automatically in `Approved` / module) | `spp` | Identifies resource as managed by SPP 2.0 control plane |
