@@ -13,8 +13,8 @@ owner: platform
 Order tracking page (SSE timeline, run panel, post-build checklist), Fulfilled Orders and Resources tables, resource detail actions.
 
 ## Context pack
-- Read: 10-product/16-ui-spec.md §4.4-4.5; 00-constitution/* (always).
-- Repo structure and binding notes: 40-repos/ (file for `ssp-ui`), or 45-ssp-module-template.md for module repos, or 20-apps/ for apps.
+- Read: experiences/portal-ui/16-ui-spec.md §4.4-4.5; 00-constitution/* (always).
+- Repo structure and binding notes: experiences/portal-ui/44-ssp-ui-structure.md (for `ssp-ui`), or 45-ssp-module-template.md for module repos, or 20-apps/ for apps.
 - Files you may touch: those implied by the goal inside `ssp-ui`; never protected paths (.github/, CODEOWNERS, deploy/foundation/, gate scripts).
 
 ## Acceptance criteria

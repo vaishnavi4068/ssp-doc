@@ -1,6 +1,6 @@
 # 44 — `ssp-ui` Repository Structure
 
-Implements `10-product/16-ui-spec.md` and the Sidekick surface of `17-conversational-provisioning-spec.md`.
+Implements `experiences/portal-ui/16-ui-spec.md` (`16-ui-spec.md`) and the Sidekick surface of `10-product/17-conversational-provisioning-spec.md` (superseded by `experiences/portal-ui/README.md` and `experiences/agentic-chat/README.md`).
 
 ```
 ssp-ui/

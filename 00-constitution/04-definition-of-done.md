@@ -37,7 +37,7 @@ A change is done when all of the following are true. Gates in `50-factory/54-gat
 - [ ] Renders from the catalog bundle with no code change for a new service (verified by the "unknown service" fixture).
 - [ ] Keyboard navigation, focus order and contrast meet WCAG 2.1 AA on changed screens.
 - [ ] Visual regression snapshots updated intentionally, not blindly.
-- [ ] Matches the design tokens in `10-product/16-ui-spec.md`.
+- [ ] Matches the design tokens in `experiences/portal-ui/16-ui-spec.md`.
 
 ## For infrastructure (`30-infra/`)
 

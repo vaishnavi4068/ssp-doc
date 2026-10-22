@@ -100,7 +100,7 @@ Data tables (shadcn `DataTable`): filter by destination, service, state; row cli
 Drafts = serialized `OrderInput` stored server-side per user (`/v1/drafts`, Phase 1.1; local storage until then). Settings: notification channels, default destination, theme.
 
 ### 4.7 Sidekick slide-over
-Header "Sidekick Cloud Concierge — Instant SKU configuration & order prefill", reset and close. "Express SKU bundles" chips (frequent presets). Message list; assistant messages may carry cards: **Preflight card** (mini receipt + "Open in checkout" + "Place order"), **Status card**, **Citation chips** (ADR / requirement id → docs). Composer at bottom with send. See `17-conversational-provisioning-spec.md` for behaviour; SSP-UI-030 the slide-over never shows a "Place order" button unless the card came from a server preflight with a `preview_hash`.
+Header "Sidekick Cloud Concierge — Instant SKU configuration & order prefill", reset and close. "Express SKU bundles" chips (frequent presets). Message list; assistant messages may carry cards: **Preflight card** (mini receipt + "Open in checkout" + "Place order"), **Status card**, **Citation chips** (ADR / requirement id → docs). Composer at bottom with send. See `../../10-product/17-conversational-provisioning-spec.md` (and `../agentic-chat/README.md`) for behaviour; SSP-UI-030 the slide-over never shows a "Place order" button unless the card came from a server preflight with a `preview_hash`.
 
 ## 5. Template-driven micro-frontend
 
