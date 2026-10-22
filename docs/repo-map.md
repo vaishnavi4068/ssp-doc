@@ -26,8 +26,10 @@ This document defines the repository topology for the **Self-Service Provisionin
   - `adr/global/` — Platform-wide invariants (`ADR-GLB-001` .. `ADR-GLB-009`)
   - `adr/business-process/` — Ownership map, build order, and roles/approval gate governance (`ADR-BP-001` .. `ADR-BP-003`)
   - `adr/endpoint-service/` — Endpoint service specifications (`ADR-SVC-001` for `gcs_bucket`; `ADR-SVC-002` for `spanner_instance` and `spanner_database`)
+  - `adr/experience/` — Experience line ADRs over `ssp-cp` (`ADR-EXP-001` Agentic Chatbot, `ADR-EXP-002` MCP Server, `ADR-EXP-003` Client SDK)
   - `adr/per-cloud/gcp/` — Runtime platform on GCP (`md-dev`) and GCP 2.0 target architecture in `us-east1` (`ADR-CLD-GCP-001`)
-  - `adr/automation/` — Temporal workflows, deterministic Kubernetes Job Terraform execution, Day-2 alert-only drift & deletion governance, and factory ADR flow (`ADR-AUT-001` .. `ADR-AUT-003`)
+  - `adr/automation/` — Temporal workflows, deterministic Kubernetes Job Terraform execution, Day-2 alert-only drift & deletion governance, factory ADR flow, and Jev model Agent Harness & deterministic Temporal workflow execution layer (`ADR-AUT-001` .. `ADR-AUT-004`)
+  - `experiences/` — Multi-channel experience specifications ([`experiences/README.md`](../experiences/README.md), [`experiences/agentic-chat/`](../experiences/agentic-chat/), [`experiences/mcp/`](../experiences/mcp/), [`experiences/sdk/`](../experiences/sdk/)), all sharing the `ssp-cp` API and policy/approval path with zero privileged channels
   - `specs/data-model/spp_state_model.sql` — Reconstructed PostgreSQL DDL for schema `idp` (**becomes versioned Alembic migrations in `ssp-cp` later**)
   - `specs/naming/naming-spec.json` — Reconstructed naming & label normalization spec (`idp-naming` v1.0.0, **consumed by `ssp-cp` and `spp-factory-foundation`**)
   - `specs/examples/gcs_bucket.gates.json` — Reconstructed GCS bucket walkthrough across all four gates and critical PAP drift scenario
