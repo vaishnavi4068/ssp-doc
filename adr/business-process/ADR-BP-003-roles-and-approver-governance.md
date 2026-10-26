@@ -39,7 +39,7 @@ From the sanitized four-gate design package (`roles.md`, `workflows.md`, `enviro
 | **Platform Team / Operations** | `platform-team` (`updated_by` of `approval_gate_config`; `operations` persona) | Owns `idp.approval_gate_config`, `state_unit.status` (`freeze`/`unfreeze` kill switch), and co-approves destructive operations. |
 | **Shared Mailbox** | `metadata.shared_mailbox` (`sharedemailaddress` label) | Team contact and notification recipient (`notify_owner` post-apply task). |
 | **Enterprise Domain Owning Teams** | — | **Network Security:** owns VPC-SC perimeters (`<lob>_<env>_restricted_perimeter`). **Security Key Vault Team:** owns CMEK keys. **Identity Team:** owns directory (`ad_group`) groups (`gcp-<lob>-<env>-<app>-(read\|write\|admin\|dba)`). **Project Owners:** own app service accounts (`orders-api@...`). **Project Vending:** owns GCP projects (`{lob}-{env}-{purpose}`). **DBaaS Team:** owns shared Spanner instances. |
-| **System Actors** | `system:<temporal_workflow_id>`, `idp-tf@<project>.iam.gserviceaccount.com`, `<runner-sa>@microdrive-dev.iam.gserviceaccount.com` | Recorded in `idp.gate_event.actor`; per-project executor SA reached via impersonation from central platform runner SA. |
+| **System Actors** | `system:<temporal_workflow_id>`, `idp-tf@<project>.iam.gserviceaccount.com`, `<runner-sa>@<spp-factory-host-project-id>.iam.gserviceaccount.com` | Recorded in `idp.gate_event.actor`; per-project executor SA reached via impersonation from central platform runner SA. |
 
 ### 2. Allowed IAM Principals in Resource Requests
 

@@ -118,7 +118,7 @@ From the sanitized four-gate design package (`naming.md` and `raw/naming-spec.re
 
 The following enterprise resources are looked up or verified by SPP rather than generated as managed Terraform resources in the tenant state unit:
 - **`vpc_sc_perimeter`** (owned by Network Security): `^[a-z][a-z0-9]*_[a-z]+_(restrict|unrestrict)ed_perimeter$`, e.g., `<lob>_nonprod_restricted_perimeter`.
-- **`kms_key`** (owned by Security Key Vault team; looked up by `(LOB, environment_type, location="us-east1")`, never hardcoded to a single nonprod constant): `projects/<kms-project>/locations/us-east1/keyRings/<ring>/cryptoKeys/<key>`, e.g., `projects/<lob>-kms-nonprod/locations/us-east1/keyRings/<lob>-nonprod-use1/cryptoKeys/gcs-default` (or `projects/microdrive-dev/locations/us-east1/keyRings/<TODO>/cryptoKeys/<TODO>` in `microdrive-dev`).
+- **`kms_key`** (owned by Security Key Vault team; looked up by `(LOB, environment_type, location="us-east1")`, never hardcoded to a single nonprod constant): `projects/<kms-project>/locations/us-east1/keyRings/<ring>/cryptoKeys/<key>`, e.g., `projects/<lob>-kms-nonprod/locations/us-east1/keyRings/<lob>-nonprod-use1/cryptoKeys/gcs-default` (or `projects/<spp-factory-host-project-id>/locations/us-east1/keyRings/<TODO>/cryptoKeys/<TODO>` in `<spp-factory-host-project-id>`).
 - **`ad_group`** (owned by Identity team via directory service): `gcp-<lob>-<env>-<app>-(read|write|admin|dba)`, e.g., `gcp-<lob>-nonprod-orders-read@example.com`.
 - **`service_account`** (owned by project owners): `^[a-z][a-z0-9]{1,11}-[a-z0-9-]*[a-z0-9]$` (`6..30` chars), e.g., `orders-api@<lob>-nonprod-orders-svc.iam.gserviceaccount.com`.
 - **`gcp_project`** (owned by project vending): `{lob}-{env}-{purpose}`, e.g., `<lob>-nonprod-orders-svc`.

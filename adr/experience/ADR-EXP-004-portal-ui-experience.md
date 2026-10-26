@@ -18,14 +18,14 @@ Define the **Portal UI Experience (`ssp-ui`, `experiences/portal-ui/`, `channel 
    - Alongside the Agentic Chatbot (`ADR-EXP-001`), MCP Server (`ADR-EXP-002`), and Client SDK (`ADR-EXP-003`), the **Portal UI (`ssp-ui`)** is one of four peer experience lines over the `ssp-cp` FastAPI Control Plane API.
    - Earlier UI specification files (`10-product/16-ui-spec.md` and `40-repos/44-ssp-ui-structure.md`) lived outside the experience layer and have been moved via `git mv` into [`experiences/portal-ui/16-ui-spec.md`](../../experiences/portal-ui/16-ui-spec.md) and [`experiences/portal-ui/44-ssp-ui-structure.md`](../../experiences/portal-ui/44-ssp-ui-structure.md), paired with [`experiences/portal-ui/README.md`](../../experiences/portal-ui/README.md).
 2. **Live `ssp-ui` Deployment (`https://portal.taxi.growripple.ai`):**
-   - The live SPP Portal runs at `https://portal.taxi.growripple.ai` on GKE cluster `md-dev` (namespace `spp-platform`, node pool `spp-pool`), implementing **IDP Design Variant 17** (React + TypeScript + Vite + Tailwind CSS).
+   - The live SPP Portal runs at `https://portal.taxi.growripple.ai` on the SPP GKE cluster in `<spp-factory-host-project-id>` (namespace `spp-platform`, node pool `spp-pool`), implementing **IDP Design Variant 17** (React + TypeScript + Vite + Tailwind CSS).
    - An **nginx** container serves the static SPA bundle and reverse-proxies `/api/v1/*`, `/healthz`, and `/readyz` on the same origin to `spp-cp` (`http://spp-cp.spp-platform.svc.cluster.local:8000`).
    - In the catalog today, **GCS Bucket (`gcs_bucket` in `us-east1`) is live** (`form -> ssp-cp FastAPI API -> OPA intake policy -> human approval -> Temporal workflow -> Terraform plan -> apply gate`), and **Cloud Spanner (`spanner_instance`, `spanner_database`) is displayed as "Coming Soon"**.
 
 ## Decision
 
 1. **Architecture & Same-Origin nginx Proxy to `spp-cp`:**
-   - `ssp-ui` is deployed in Kubernetes namespace `spp-platform` on GKE `md-dev` behind `https://portal.taxi.growripple.ai`.
+   - `ssp-ui` is deployed in Kubernetes namespace `spp-platform` on the SPP GKE cluster behind `https://portal.taxi.growripple.ai`.
    - The nginx container serves the compiled React SPA and forwards all `/api/v1/*`, `/healthz`, and `/readyz` requests to `spp-cp` (`ssp-cp` FastAPI service), preserving the `HttpOnly`, `Secure`, `SameSite=Lax` `__Host-spp_cp_session` cookie and `X-CSRF-Token` header on the same origin.
    - `ssp-ui` has zero direct connectivity to AlloyDB (`spp_platform`), the OPA server (`spp-policy`), Temporal (`spp-temporal`), or `gs://microdrive-dev-spp-tfstate`.
 2. **Visual & Interaction Standard (IDP Design Variant 17):**

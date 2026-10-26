@@ -118,7 +118,7 @@ All 7 tools are returned by `tools/list` in deterministic alphabetical order (`t
 
 ## Open Questions
 
-- [ ] **OQ-1 (OAuth 2.1 Authorization Server Hosting in `microdrive-dev` — [Owner: Manoj / Raju]):** Confirm whether `ssp-cp` exposes the OAuth 2.1 Authorization Server metadata (`/.well-known/oauth-authorization-server`) in `microdrive-dev` or delegates token issuance to the corporate OIDC IdP while `spp-mcp` hosts `/.well-known/oauth-protected-resource`.
+- [ ] **OQ-1 (OAuth 2.1 Authorization Server Hosting in `<spp-factory-host-project-id>` — [Owner: Manoj / Raju]):** Confirm whether `ssp-cp` exposes the OAuth 2.1 Authorization Server metadata (`/.well-known/oauth-authorization-server`) in `<spp-factory-host-project-id>` or delegates token issuance to the corporate OIDC IdP while `spp-mcp` hosts `/.well-known/oauth-protected-resource`.
 - [ ] **OQ-2 (Legacy `2025-11-25` Client Fallback Mode — [Owner: Manoj / Dwayne]):** Confirm whether `spp-mcp` (`mcp v2.3.0`) should enable `2025-11-25` handshake fallback for older IDE clients or strictly enforce `MCP-Protocol-Version: 2026-07-28`.
 
 ## Related ADRs

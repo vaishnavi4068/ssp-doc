@@ -12,7 +12,7 @@
 --   1. GCP only (`cloud CHECK (cloud IN ('gcp'))`, `scope_type = 'project'`).
 --   2. Region `us-east1` only (no multi-region `US` or `nam3`, no `us-east4`).
 --   3. Database target: Google Cloud AlloyDB for PostgreSQL (`spp_platform` in
---      `microdrive-dev`, `us-east1`) — NOT Cloud SQL.
+--      `<spp-factory-host-project-id>`, `us-east1`) — NOT Cloud SQL.
 --   4. Four gates: Requested & Approved stored in full in AlloyDB (zero secrets);
 --      Expected & Observed artifacts stored in GCS (`gs://microdrive-dev-spp-tfstate`);
 --      short non-sensitive Observed projections (< 2000 bytes) and drift_finding

@@ -10,23 +10,23 @@
 
 ## Goal
 
-Define the complete relational data model (schema `idp`: 18 tables, status vocabularies, SQL helper functions, immutability triggers, and read-model view `idp.v_resource_status`) and **AlloyDB for PostgreSQL** hosting architecture in GCP (`microdrive-dev`, region `us-east1`) that backs SPP's control plane (`ssp-cp`).
+Define the complete relational data model (schema `idp`: 18 tables, status vocabularies, SQL helper functions, immutability triggers, and read-model view `idp.v_resource_status`) and **AlloyDB for PostgreSQL** hosting architecture in GCP (`<spp-factory-host-project-id>`, region `us-east1`) that backs SPP's control plane (`ssp-cp`).
 
 ## Context
 
 From the design session (`uploads/design-digest.md`), stakeholder overrides, and the reconstructed four-gate DDL (`specs/data-model/spp_state_model.sql`, transcribed from `idp_state_model.sql` and the diagrams PDF; see [`docs/source-provenance.md`](../../docs/source-provenance.md)):
 
-1. **AlloyDB for PostgreSQL in `us-east1` (Overriding Cloud SQL):** Although the photographed `idp_state_model.sql` header mentioned `Cloud SQL for PostgreSQL`, SPP's locked decision overrides this: the control plane database (`spp_platform`) runs on a **dedicated Google Cloud AlloyDB for PostgreSQL** cluster/instance in `microdrive-dev` (`us-east1`), connected via private IP / Private Services Access (PSA) and IAM Workload Identity authentication. Every PostgreSQL 15+ construct in the DDL (`gen_random_uuid()`, `sha256()`, `convert_to()`, `plpgsql` triggers, `DEFERRABLE INITIALLY DEFERRED` foreign keys, `GIN (jsonb_path_ops)`, partial unique indexes, `GENERATED ALWAYS AS IDENTITY`, and `WITH (fillfactor = 80)`) is natively compatible with AlloyDB for PostgreSQL.
+1. **AlloyDB for PostgreSQL in `us-east1` (Overriding Cloud SQL):** Although the photographed `idp_state_model.sql` header mentioned `Cloud SQL for PostgreSQL`, SPP's locked decision overrides this: the control plane database (`spp_platform`) runs on a **dedicated Google Cloud AlloyDB for PostgreSQL** cluster/instance in `<spp-factory-host-project-id>` (`us-east1`), connected via private IP / Private Services Access (PSA) in the SPP VPC and IAM Workload Identity authentication. Every PostgreSQL 15+ construct in the DDL (`gen_random_uuid()`, `sha256()`, `convert_to()`, `plpgsql` triggers, `DEFERRABLE INITIALLY DEFERRED` foreign keys, `GIN (jsonb_path_ops)`, partial unique indexes, `GENERATED ALWAYS AS IDENTITY`, and `WITH (fillfactor = 80)`) is natively compatible with AlloyDB for PostgreSQL.
 2. **Kind-Agnostic Shared Tables + JSONB Validated by Per-Kind JSON Schema:** At 5,000+ GCP projects, creating tables per resource kind or per project would require thousands of database objects to migrate per schema change. All tables in schema `idp` are shared across resource kinds (`gcs_bucket`, `spanner_instance`, `spanner_database`), keyed by `state_unit_id` and `resource_id`, while kind-specific payloads live in `jsonb` columns (`requested_spec`, `approved_spec`, `projection`) validated by versioned JSON Schemas pinned on `request.schema_version`.
 3. **17 Captured DDL Tables + 18th Table (`idp.apm_alias`) from ER Diagram:** The README in the source bundle noted "17 tables" in `idp_state_model.sql`, while page 2 of the source diagrams PDF (`photos 6573-6575`) showed "All 18 tables in `idp` schema", adding `idp.apm_alias` under Registry as a lookup table with no foreign key (dashed line in ER diagram) used by the naming spec (`idp.apm_alias.alias for metadata.apm_id`, e.g., `apm0017299 -> orders`).
 4. **DDL to Alembic Migration Path:** The canonical reconstructed DDL lives in [`specs/data-model/spp_state_model.sql`](../../specs/data-model/spp_state_model.sql) in `ssp-doc` and will be translated into versioned **Alembic** migrations in `ssp-cp`.
 
 ## Decision
 
-### 1. Dedicated AlloyDB for PostgreSQL Hosting (`microdrive-dev` in `us-east1`)
+### 1. Dedicated AlloyDB for PostgreSQL Hosting (`<spp-factory-host-project-id>` in `us-east1`)
 
-- **Service & Nonprod Sizing:** Dedicated **Google Cloud AlloyDB for PostgreSQL** cluster and `BASIC` primary instance (`2 vCPU` / `16 GB`) in project `microdrive-dev`, region **`us-east1`**, logical database `spp_platform`, schema `idp` (alongside local auth tables `users` / `user_sessions` per `ADR-GLB-005`).
-- **Backups, CMEK & Connectivity:** Continuous backup / PITR (14-day window in nonprod), CMEK key in `us-east1` (`projects/microdrive-dev/locations/us-east1/keyRings/<TODO>/cryptoKeys/<TODO>`), private IP / PSA only (no public IP), and GKE Workload Identity IAM database authentication (`roles/alloydb.client` + `roles/alloydb.databaseUser`).
+- **Service & Nonprod Sizing:** Dedicated **Google Cloud AlloyDB for PostgreSQL** cluster and `BASIC` primary instance (`2 vCPU` / `16 GB`) in project `<spp-factory-host-project-id>`, region **`us-east1`**, logical database `spp_platform`, schema `idp` (alongside local auth tables `users` / `user_sessions` per `ADR-GLB-005`).
+- **Backups, CMEK & Connectivity:** Continuous backup / PITR (14-day window in nonprod), CMEK key in `us-east1` (`projects/<spp-factory-host-project-id>/locations/us-east1/keyRings/<TODO>/cryptoKeys/<TODO>`), private IP / PSA only in the SPP VPC (no public IP), and GKE Workload Identity IAM database authentication (`roles/alloydb.client` + `roles/alloydb.databaseUser`).
 - **Migrations:** Owned by `ssp-cp` via Alembic migrations derived from `specs/data-model/spp_state_model.sql`.
 
 ### 2. Entity-Relationship Model (`idp` Schema)
@@ -112,7 +112,7 @@ Status vocabularies are implemented as PostgreSQL `CHECK` constraints rather tha
 
 ## Requirements
 
-- **REQ-1 (MUST):** The SPP control plane (`ssp-cp`) MUST persist all four-gate relational data in a dedicated **AlloyDB for PostgreSQL** cluster/instance (`spp_platform` database, schema `idp`, in `microdrive-dev`, region `us-east1`), connected via private IP / PSA and GKE Workload Identity IAM auth.
+- **REQ-1 (MUST):** The SPP control plane (`ssp-cp`) MUST persist all four-gate relational data in a dedicated **AlloyDB for PostgreSQL** cluster/instance (`spp_platform` database, schema `idp`, in `<spp-factory-host-project-id>`, region `us-east1`), connected via private IP / PSA and GKE Workload Identity IAM auth.
 - **REQ-2 (MUST):** `ssp-cp` MUST translate [`specs/data-model/spp_state_model.sql`](../../specs/data-model/spp_state_model.sql) into versioned **Alembic** migrations creating all 18 tables (`approval_gate_config`, `resource_kind`, `apm_alias`, `state_unit`, `resource`, `submission`, `request`, `policy_evaluation`, `approval`, `approval_decision`, `expected_revision`, `expected_revision_member`, `tf_operation`, `observation`, `resource_observed`, `drift_finding`, `lifecycle_task`, `gate_event`) and `v_resource_status`.
 - **REQ-3 (MUST):** `submission.raw_payload` and `request.requested_spec` MUST enforce both JSON Schema validation and database `CHECK` constraints (`submission_no_secret_values`, `request_no_secret_values`) rejecting secret keys (`password`, `passwd`, `client_secret`, `private_key`, `secret_value`, `api_key`, `token`).
 - **REQ-4 (MUST):** `idp.submission` MUST enforce `UNIQUE (apm_id, idempotency_key)` so retried intake submissions are deduplicated deterministically.
@@ -168,7 +168,7 @@ Status vocabularies are implemented as PostgreSQL `CHECK` constraints rather tha
 
 ## Open Questions
 
-- [x] **OQ-1 (AlloyDB vs. Cloud SQL — OVERRIDDEN BY USER DECISION 2026-10-21):** *Resolved:* Use **AlloyDB for PostgreSQL** in `microdrive-dev` (`us-east1`), overriding the source DDL header's reference to Cloud SQL.
+- [x] **OQ-1 (AlloyDB vs. Cloud SQL — OVERRIDDEN BY USER DECISION 2026-10-21):** *Resolved:* Use **AlloyDB for PostgreSQL** in `<spp-factory-host-project-id>` (`us-east1`), overriding the source DDL header's reference to Cloud SQL.
 - [ ] **OQ-2 (Source Gaps in `idp_state_model.sql` — UNVERIFIED SOURCE GAP [Owner: Manoj / Karen]):** **Unverified (source gap):** The following line ranges of `idp_state_model.sql` were not photographed (`[NOT CAPTURED]` / `[truncated]`) and are reconstructed with explicit markers in `specs/data-model/spp_state_model.sql`:
   1. **Lines 47–52:** Comment/header block preceding `idp.approval_gate_config`.
   2. **Lines 96–104 (`idp.state_unit`):** Exact definitions and nullability of `scope_type`, `scope_id`, `lob`, `environment`, `apm_id`, `state_bucket`, `state_prefix`, `executor_identity` (inferred from `UNIQUE (cloud, scope_id)`, `UNIQUE (state_bucket, state_prefix)`, column comments, and `idp.v_resource_status`).
@@ -190,4 +190,4 @@ Status vocabularies are implemented as PostgreSQL `CHECK` constraints rather tha
 - [ADR-GLB-005: Identity, Workload Identity, and Authentication](ADR-GLB-005-identity-and-authentication.md)
 - [ADR-GLB-009: Resource Kind Registry](ADR-GLB-009-resource-kind-registry.md)
 - [ADR-BP-003: Roles, Personas, and Approval Gate Governance](../business-process/ADR-BP-003-roles-and-approver-governance.md)
-- [ADR-CLD-GCP-001: Runtime Platform (GKE `md-dev` and Self-Hosted Temporal)](../per-cloud/gcp/ADR-CLD-GCP-001-runtime-platform-gke-and-temporal.md)
+- [ADR-CLD-GCP-001: Runtime Platform (SPP GKE Cluster and Self-Hosted Temporal)](../per-cloud/gcp/ADR-CLD-GCP-001-runtime-platform-gke-and-temporal.md)

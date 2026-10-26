@@ -114,7 +114,7 @@ At the `Approved` gate (`approval_id = "761d8bf8-d23e-5da3-8e52-02e6eb6c2afb"`, 
 | :--- | :--- | :--- | :--- |
 | **`GCS-UBLA-001`** | `/spec/uniform_bucket_level_access` | `null` → `true` | `"Uniform bucket-level access is mandatory. Legacy form value 'false' was not car[ried...]"` |
 | **`GCS-PAP-001`** | `/spec/public_access_prevention` | `null` → `"enforced"` | *Unverified (source gap: lines 332–335 not captured in photo; `"enforced"` confirmed from `approved.document.spec.public_access_prevention`).* |
-| **`GCS-ENC-001` (`002`)** | `/spec/kms_key_name` | `null` → `"projects/<lob>-kms-nonprod/locations/us-east1/keyRings/<lob>-nonprod-use1/cryptoKeys/gcs-default"` *(or `projects/microdrive-dev/locations/us-east1/keyRings/<TODO>/cryptoKeys/<TODO>`)* | `"CMEK resolved by (lob=<lob>, environment_type=nonprod, location=us-east1); key location 'us-east1' matches buc[ket...]"` *(overridden from `US` to `us-east1`)*. |
+| **`GCS-ENC-001` (`002`)** | `/spec/kms_key_name` | `null` → `"projects/<lob>-kms-nonprod/locations/us-east1/keyRings/<lob>-nonprod-use1/cryptoKeys/gcs-default"` *(or `projects/<spp-factory-host-project-id>/locations/us-east1/keyRings/<TODO>/cryptoKeys/<TODO>`)* | `"CMEK resolved by (lob=<lob>, environment_type=nonprod, location=us-east1); key location 'us-east1' matches buc[ket...]"` *(overridden from `US` to `us-east1`)*. |
 | **`GCS-RET-001`** | `/spec/retention_days` | `null` → `90` | `"Retention floor for restricted data (illustrative value; set by the GCS ADR). Versioning stays off [...]"` |
 | **`GCS-RET-003`** | `/spec/retention_locked` | `null` → `false` | `"Locks are irreversible and only applied on an explicit records-management request."` |
 | **`GCS-SDP-001`** | `/spec/soft_delete_retention_days` | `null` → `7` | `"Soft-delete window for accidental deletes."` |
@@ -242,7 +242,7 @@ In `gs://microdrive-dev-spp-tfstate/projects/<lob>-nonprod-orders-svc/expected/r
 
 ### Negative / Trade-offs
 
-- Requires a valid Cloud KMS CryptoKey in `us-east1` before live `terraform apply` can succeed in `microdrive-dev`.
+- Requires a valid Cloud KMS CryptoKey in `us-east1` before live `terraform apply` can succeed in `<spp-factory-host-project-id>`.
 
 ## Acceptance Criteria
 
@@ -273,7 +273,7 @@ In `gs://microdrive-dev-spp-tfstate/projects/<lob>-nonprod-orders-svc/expected/r
 
 ## Open Questions
 
-- [x] **OQ-1 (CMEK Key URI in `microdrive-dev` / `us-east1` — RESOLVED / USER-SUPPLIED `TODO: vaishnavi4068`):** *Resolved:* In `microdrive-dev`, use placeholder `projects/microdrive-dev/locations/us-east1/keyRings/<TODO>/cryptoKeys/<TODO>`; in enterprise 2.0 projects, lookup `projects/<lob>-kms-<env>/locations/us-east1/keyRings/<lob>-<env>-use1/cryptoKeys/gcs-default` by `(lob, environment_type, location="us-east1")`.
+- [x] **OQ-1 (CMEK Key URI in `<spp-factory-host-project-id>` / `us-east1` — RESOLVED / USER-SUPPLIED `TODO: vaishnavi4068`):** *Resolved:* In `<spp-factory-host-project-id>`, use placeholder `projects/<spp-factory-host-project-id>/locations/us-east1/keyRings/<TODO>/cryptoKeys/<TODO>`; in enterprise 2.0 projects, lookup `projects/<lob>-kms-<env>/locations/us-east1/keyRings/<lob>-<env>-use1/cryptoKeys/gcs-default` by `(lob, environment_type, location="us-east1")`.
 - [x] **OQ-2 (Object Lifecycle Rules Default vs. Optional — OVERRIDDEN BY USER DECISION 2026-10-21):** *Resolved:* Object `lifecycle_rules` default to **NONE (`[]`)** (removing the source's 365-day auto-delete default) and are exposed as optional user-configurable options on the `gcs_bucket` request, validated by policy and approved via `gcs_bucket_owner`.
 - [x] **OQ-3 (Retention Lock Rule `GCS-RET-003` — CONFIRMED FROM SOURCE 2026-10-21):** *Resolved:* `GCS-RET-003` sets `/spec/retention_locked = false` (`retention_policy.is_locked = false`) because locks are irreversible and only applied on an explicit records-management request.
 - [ ] **OQ-4 (Unverified Source Gaps in `examples/gcs_bucket.gates.json` & `gcs_bucket.schema.json` — SOURCE GAP [Owner: Manoj]):** **Unverified (source gap):**
