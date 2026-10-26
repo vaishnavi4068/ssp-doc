@@ -133,11 +133,13 @@ flowchart LR
         Waiters["Deterministic Wait / Poll Helpers\n- wait_for_approval()\n- wait_for_observed()\n- Surface Temporal workflow_ids"]
     end
 
-    subgraph CP["ssp-cp FastAPI Control Plane (K8s ns: spp-platform)"]
-        API["REST Endpoints (/api/v1/*)"]
-        OPA["OPA Server (:8181)\nidp.gcp.gcs_bucket"]
-        AlloyDB[("AlloyDB (spp_platform)\nSchema idp")]
-        Temporal["Temporal (ns: platform)\nTask Queue: spp-gcs-provisioning\n+ Proposed: spp-agent-actions"]
+    subgraph HostProject["SPP-factory-host GCP project (SPP VPC / SPP GKE cluster — Region: us-east1)"]
+        subgraph CP["ssp-cp FastAPI Control Plane (K8s ns: spp-platform)"]
+            API["REST Endpoints (/api/v1/*)"]
+            OPA["OPA Server (:8181)\nidp.gcp.gcs_bucket"]
+            AlloyDB[("AlloyDB (spp_platform)\nSchema idp")]
+            Temporal["Temporal (ns: platform)\nTask Queue: spp-gcs-provisioning\n+ Proposed: spp-agent-actions"]
+        end
     end
 
     DevScript --> Models
@@ -159,7 +161,7 @@ Every method in `spp-sdk` maps directly to `vaishnavi4068/ssp-cp` (`app/main.py`
 
 | SDK Method (`SppClient` / `AsyncSppClient`) | HTTP Method & Path | Status in `ssp-cp` | Request / Response Models (`spp_sdk.models`) | Notes & Temporal Workflow Mapping |
 | :--- | :--- | :--- | :--- | :--- |
-| `client.healthz()` / `client.readyz()` | `GET /healthz`, `GET /readyz` | **REAL** (`app/main.py:121, 143`) | `HealthResponse`, `ReadyResponse` | Returns cluster target (`gcp_project = "microdrive-dev"`, `region = "us-east1"`, `temporal_namespace = "platform"`, `temporal_task_queue = "spp-gcs-provisioning"`, `default_kms_key_name`). |
+| `client.healthz()` / `client.readyz()` | `GET /healthz`, `GET /readyz` | **REAL** (`app/main.py:121, 143`) | `HealthResponse`, `ReadyResponse` | Returns cluster target (`gcp_project` `<spp-factory-host-project-id>`, `region = "us-east1"`, `temporal_namespace = "platform"`, `temporal_task_queue = "spp-gcs-provisioning"`, `default_kms_key_name`). |
 | `client.login(username, password)` | `POST /api/v1/auth/login` | **REAL** (`app/main.py:155`) | `LoginRequest` -> `UserProfileResponse` | Stores `__Host-spp_cp_session` cookie and caches `csrf_token` for subsequent mutating requests. |
 | `client.change_password(current_password, new_password)` | `POST /api/v1/auth/change-password` | **REAL** (`app/main.py:291`) | `ChangePasswordRequest` -> `UserProfileResponse` | Rotates first-login bootstrap password (`must_change_password: true -> false`) and refreshes session + `csrf_token`. |
 | `client.logout()` | `POST /api/v1/auth/logout` | **REAL** (`app/main.py:359`) | `dict` (`{"status": "logged_out"}`) | Revokes session in AlloyDB (`cp_sessions.revoked = true`). |
@@ -253,5 +255,5 @@ The SDK shares the exact validation logic from `ssp-cp/app/schemas.py` and `ssp-
 
 ## 10. Open Questions
 
-- [ ] **OQ-EXP-SDK-1 (Package Hosting Location — [Owner: Manoj / Norm]):** Confirm whether `spp-sdk` lives in a dedicated repository (`github.com/vaishnavi4068/ssp-sdk`), inside `ssp-cp/sdk/python/`, or is published to GCP Artifact Registry Python repository (`us-east1-python.pkg.dev/microdrive-dev/spp-python/spp-sdk`).
+- [ ] **OQ-EXP-SDK-1 (Package Hosting Location — [Owner: Manoj / Norm]):** Confirm whether `spp-sdk` lives in a dedicated repository (`github.com/vaishnavi4068/ssp-sdk`), inside `ssp-cp/sdk/python/`, or is published to GCP Artifact Registry Python repository (`us-east1-python.pkg.dev/<spp-factory-host-project-id>/spp-python/spp-sdk`).
 - [ ] **OQ-EXP-SDK-2 (TypeScript SDK Generation Timing — [Owner: Dwayne / Manoj]):** Confirm that `@spp/sdk` (TypeScript) remains deferred to Phase 5 (`ADR-BP-002`, `WI-006`) alongside `ssp-ui`.

@@ -8,7 +8,7 @@
 - **Companion Portal UI Docs in This Folder (Moved via `git mv`):**
   - [`16-ui-spec.md`](16-ui-spec.md) — Storefront UI visual & token specification (IDP Design Variant #17 "Shopify Polaris Infrastructure Storefront", originally at `10-product/16-ui-spec.md`).
   - [`44-ssp-ui-structure.md`](44-ssp-ui-structure.md) — `ssp-ui` repository structure and component layout notes (originally at `40-repos/44-ssp-ui-structure.md`).
-- **Live Portal URL:** [`https://portal.taxi.growripple.ai`](https://portal.taxi.growripple.ai) (served by `ssp-ui` in GKE `md-dev` namespace `spp-platform`, with an **nginx reverse proxy** forwarding `/api/v1/*`, `/healthz`, and `/readyz` to `spp-cp`).
+- **Live Portal URL:** [`https://portal.taxi.growripple.ai`](https://portal.taxi.growripple.ai) (served by `ssp-ui` in the SPP GKE cluster namespace `spp-platform` inside `<spp-factory-host-project-id>`, with an **nginx reverse proxy** forwarding `/api/v1/*`, `/healthz`, and `/readyz` to `spp-cp`).
 - **Visual Design Baseline:** **IDP Design Variant 17** ("Shopify Polaris Infrastructure Storefront" — storefront green `#1b7a5a`, soft-gray `#f5f6f9` canvas, white `12px`-radius cards, `Inter` + `JetBrains Mono` typography; see [`16-ui-spec.md`](16-ui-spec.md) §2).
 - **Catalog Feature Status:** **Google Cloud Storage Bucket (`kind = "gcs_bucket"`, `us-east1`) is LIVE**; **Cloud Spanner (`spanner_instance`, `spanner_database`) is shown as "Coming Soon"**.
 - **Submission Channel:** `channel = "ui"`, `source_ref = "portal-ui:variant-17"`.
@@ -17,7 +17,7 @@
 
 ## 1. Purpose & Shared Architectural Principle
 
-The **Portal UI Experience (`ssp-ui`)** is the web-based self-service storefront for the **Self-Service Provisioning Platform (SPP)**, deployed live at **[`https://portal.taxi.growripple.ai`](https://portal.taxi.growripple.ai)** on GKE cluster `md-dev` (namespace `spp-platform`, tainted node pool `spp-pool`). Built on **IDP Design Variant 17** (React `18+`, TypeScript `5.x`, Vite, Tailwind CSS), the portal serves static assets from an **nginx** container that reverse-proxies all `/api/v1/*` requests on the same origin to the `spp-cp` (`spp-cp`) FastAPI service (`http://spp-cp.spp-platform.svc.cluster.local:8000`).
+The **Portal UI Experience (`ssp-ui`)** is the web-based self-service storefront for the **Self-Service Provisioning Platform (SPP)**, deployed live at **[`https://portal.taxi.growripple.ai`](https://portal.taxi.growripple.ai)** on the **SPP GKE cluster** in `<spp-factory-host-project-id>` (namespace `spp-platform`, tainted node pool `spp-pool`). Built on **IDP Design Variant 17** (React `18+`, TypeScript `5.x`, Vite, Tailwind CSS), the portal serves static assets from an **nginx** container that reverse-proxies all `/api/v1/*` requests on the same origin to the `spp-cp` (`spp-cp`) FastAPI service (`http://spp-cp.spp-platform.svc.cluster.local:8000`).
 
 Today, the Portal UI exposes **Google Cloud Storage Bucket (`kind = "gcs_bucket"`, region `us-east1`, `nonprod`/`prod`) as a live end-to-end provisioning flow** (`form -> ssp-cp FastAPI API -> OPA intake policy -> human approval -> Temporal workflow -> Terraform plan -> apply gate`), while surfacing **Cloud Spanner (`spanner_instance` and `spanner_database`) as "Coming Soon"** in the service catalog.
 
@@ -106,34 +106,36 @@ The sticky **Infrastructure Order Summary / Guardrails Card** in Design Variant 
 flowchart TB
     Browser(["User Browser\nhttps://portal.taxi.growripple.ai"])
 
-    subgraph GKE["GKE Cluster md-dev (Project: microdrive-dev, Region: us-east1, Node Pool: spp-pool)"]
-        Ingress["GKE Ingress / LoadBalancer\nTLS Termination (portal.taxi.growripple.ai)"]
+    subgraph HostProject["SPP-factory-host GCP project (SPP VPC, Region: us-east1)"]
+        subgraph GKE["SPP GKE cluster (Node Pool: spp-pool)"]
+            Ingress["GKE Ingress / LoadBalancer\nTLS Termination (portal.taxi.growripple.ai)"]
 
-        subgraph UIPod["ssp-ui Pod (K8s namespace: spp-platform)"]
-            Nginx["nginx Static Server & Reverse Proxy\n- / -> React SPA (IDP Design Variant 17)\n- /api/v1/*, /healthz, /readyz -> proxy_pass http://spp-cp:8000\n- Forwards __Host-spp_cp_session Cookie & X-CSRF-Token"]
+            subgraph UIPod["ssp-ui Pod (K8s namespace: spp-platform)"]
+                Nginx["nginx Static Server & Reverse Proxy\n- / -> React SPA (IDP Design Variant 17)\n- /api/v1/*, /healthz, /readyz -> proxy_pass http://spp-cp:8000\n- Forwards __Host-spp_cp_session Cookie & X-CSRF-Token"]
+            end
+
+            subgraph CPPod["spp-cp FastAPI Pod (K8s namespace: spp-platform)"]
+                FastAPI["FastAPI Control Plane (app/main.py)\n- Local Argon2id Auth & RBAC\n- Intake Normalization (app/naming.py)\n- 4-Gate Persistence & Audit"]
+            end
+
+            subgraph OPAPod["OPA Policy Pod (K8s namespace: spp-policy)"]
+                OPA["OPA HTTP Server (:8181)\nidp.common, idp.naming, idp.labels,\nidp.gcp.gcs_bucket"]
+            end
+
+            subgraph TemporalNS["Temporal Cluster (K8s namespace: spp-temporal)"]
+                Temporal["Temporal Frontend (:7233)\nNamespace: platform\nTask Queue: spp-gcs-provisioning\nWorkflow: GcsBucketProvisionWorkflow (req-<request_id>)"]
+            end
+
+            subgraph Workers["ssp-workers & Runner Jobs (K8s namespace: spp-platform)"]
+                WorkerPod["ssp-workers Pod\nPolls spp-gcs-provisioning"]
+                RunnerJob["Deterministic K8s Jobs\ntf-plan-<20hex> / tf-apply-<20hex>\n(KSA spp-tf-runner -> Platform Runner GSA)"]
+            end
         end
 
-        subgraph CPPod["spp-cp FastAPI Pod (K8s namespace: spp-platform)"]
-            FastAPI["FastAPI Control Plane (app/main.py)\n- Local Argon2id Auth & RBAC\n- Intake Normalization (app/naming.py)\n- 4-Gate Persistence & Audit"]
+        subgraph Storage["Managed GCP Storage (us-east1)"]
+            AlloyDB[("AlloyDB for PostgreSQL (spp_platform)\nPrivate IP 10.80.140.2:5432\nSchema idp (18 tables + v_resource_status)")]
+            GCS[("Single SPP State Bucket (us-east1)\nprojects/<project_id>/{expected,observed,logs}")]
         end
-
-        subgraph OPAPod["OPA Policy Pod (K8s namespace: spp-policy)"]
-            OPA["OPA HTTP Server (:8181)\nidp.common, idp.naming, idp.labels,\nidp.gcp.gcs_bucket"]
-        end
-
-        subgraph TemporalNS["Temporal Cluster (K8s namespace: spp-temporal)"]
-            Temporal["Temporal Frontend (:7233)\nNamespace: platform\nTask Queue: spp-gcs-provisioning\nWorkflow: GcsBucketProvisionWorkflow (req-<request_id>)"]
-        end
-
-        subgraph Workers["ssp-workers & Runner Jobs (K8s namespace: spp-platform)"]
-            WorkerPod["ssp-workers Pod\nPolls spp-gcs-provisioning"]
-            RunnerJob["Deterministic K8s Jobs\ntf-plan-<20hex> / tf-apply-<20hex>\n(KSA spp-tf-runner -> spp-deploy@microdrive-dev)"]
-        end
-    end
-
-    subgraph Storage["Managed GCP Storage (us-east1)"]
-        AlloyDB[("AlloyDB for PostgreSQL (spp_platform)\nPrivate IP 10.80.140.2:5432\nSchema idp (18 tables + v_resource_status)")]
-        GCS[("Single State Bucket\ngs://microdrive-dev-spp-tfstate\nprojects/<project_id>/{expected,observed,logs}")]
     end
 
     Browser <-->|"HTTPS (Same-Origin Cookie\n+ X-CSRF-Token)"| Ingress
@@ -156,7 +158,7 @@ All requests from `ssp-ui` traverse the nginx reverse proxy (`/api/v1/*` -> `htt
 
 | Portal UI Screen / Action | HTTP Method & Path (via nginx Proxy) | Status in `ssp-cp` | Auth / Role Requirement | Purpose & Response Summary |
 | :--- | :--- | :--- | :--- | :--- |
-| **System Health Banner** | `GET /healthz`, `GET /readyz` | **REAL** (`app/main.py:121, 143`) | Public / Internal | Displays cluster target (`microdrive-dev`, `md-dev`, `us-east1`, `spp-platform`, `temporal_namespace = "platform"`, `temporal_task_queue = "spp-gcs-provisioning"`, `default_kms_key_name`) and DB readiness. |
+| **System Health Banner** | `GET /healthz`, `GET /readyz` | **REAL** (`app/main.py:121, 143`) | Public / Internal | Displays cluster target (`gcp_project` `<spp-factory-host-project-id>`, `gke_cluster`, `us-east1`, `spp-platform`, `temporal_namespace = "platform"`, `temporal_task_queue = "spp-gcs-provisioning"`, `default_kms_key_name`) and DB readiness. |
 | **Sign-In Screen** | `POST /api/v1/auth/login` | **REAL** (`app/main.py:155`) | Public (Rate-limited, 5-attempt lockout) | Authenticates username/password with Argon2id, sets `__Host-spp_cp_session` cookie, and returns `UserProfileResponse` (`csrf_token`, `must_change_password`, `role`). |
 | **First-Login Password Rotation** | `POST /api/v1/auth/change-password` | **REAL** (`app/main.py:291`) | Session + `X-CSRF-Token` | Rotates bootstrap password, sets `must_change_password = false`, and issues a new session cookie and `csrf_token`. |
 | **Session Bootstrap & Top Bar User Card** | `GET /api/v1/me` | **REAL** (`app/main.py:412`) | Session Cookie | Restores logged-in user profile, persona badge (`architect`, `approver`, `bucket_owner`, `developer`), and `csrf_token` on page reload. |

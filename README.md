@@ -22,7 +22,8 @@ SPP is built, verified, and governed by an **AI Software Factory ("Dark Factory"
                                        |
                                        v
 +-----------------------------------------------------------------------------+
-| 2. Temporal Assembly Line (`spp-factory-foundation` in GKE `md-dev`)        |
+| 2. Temporal Assembly Line (`spp-factory-foundation` in SPP GKE cluster)     |
+|    - Hosted in the SPP-factory-host GCP project (SPP GKE cluster / SPP VPC) |
 |    - Orchestrated by `WorkItemWorkflow` in Temporal namespace `factory`     |
 |    - Each station launches a deterministic sandboxed Kubernetes Job         |
 |      (`factory-wi-<work_item_id>-<station>[-attempt]`) in K8s ns `spp-factory`|
@@ -135,7 +136,7 @@ SPP is built, verified, and governed by an **AI Software Factory ("Dark Factory"
 | **1. Global** | [`adr/global/`](adr/global/) | `ADR-GLB-NNN` | Architecture overview, language stack, 4-gate state model (`Requested`/`Approved` in AlloyDB Postgres, `Expected`/`Observed` in `gs://microdrive-dev-spp-tfstate`, `<= 2 KB` Observed projections), 18-table `idp` data model on dedicated AlloyDB (`spp_platform`), Workload Identity & auth, naming conventions (`nonprod`/`prod`), OPA/Rego governance gates & invariants (`INV-1..INV-9`), label standard (`LBL-001`/`LBL-002`), and resource kind registry (`idp.resource_kind`) |
 | **2. Business Process** | [`adr/business-process/`](adr/business-process/) | `ADR-BP-NNN` | Ownership map, 6-phase product build order, and roles/personas/sequential approval gates (`gcs_bucket_owner`, `spanner_data_owner`, SLA escalation, self-approval denial, mandatory human approval on all deletes) |
 | **3. Endpoint / Service & Experience Lines** | [`adr/endpoint-service/`](adr/endpoint-service/), [`adr/experience/`](adr/experience/) | `ADR-SVC-NNN`, `ADR-EXP-NNN` | Per-kind specifications and guardrail rules for `gcs_bucket` (`ADR-SVC-001`, `GCS-*`) and `spanner_instance` / `spanner_database` (`ADR-SVC-002`, `SPN-*`), plus multi-channel experience lines over `ssp-cp` (`ADR-EXP-001` Agentic Chatbot, `ADR-EXP-002` MCP Server, `ADR-EXP-003` Client SDK, `ADR-EXP-004` Portal UI; see [`experiences/`](experiences/)) |
-| **4. Per Cloud** | [`adr/per-cloud/gcp/`](adr/per-cloud/gcp/) | `ADR-CLD-GCP-NNN` | GCP runtime platform (`md-dev`, dedicated tainted `spp-pool`, K8s namespaces `spp-temporal`/`spp-factory`/`spp-platform`, self-hosted Temporal with Postgres, Temporal namespaces `factory` and `platform`) and GCP 2.0 target architecture in `us-east1` |
+| **4. Per Cloud** | [`adr/per-cloud/gcp/`](adr/per-cloud/gcp/) | `ADR-CLD-GCP-NNN` | GCP runtime platform (`<spp-factory-host-project-id>`, SPP GKE cluster, SPP VPC, dedicated tainted `spp-pool`, K8s namespaces `spp-temporal`/`spp-factory`/`spp-platform`, self-hosted Temporal with Postgres, Temporal namespaces `factory` and `platform`) and GCP 2.0 target architecture in `us-east1` |
 | **5. Automation** | [`adr/automation/`](adr/automation/) | `ADR-AUT-NNN` | Temporal workflows (`req-*`, `apr-*`, `su-gcp-*`, `drift-*`), deterministic K8s Job Terraform execution (`tf-<phase>-<20hex>` in `spp-platform`, state in `gs://microdrive-dev-spp-tfstate`), Day-2 operations & alert-only drift detection, software factory ADR flow, and the **Jev model Agent Harness & deterministic Temporal workflow execution layer (`ADR-AUT-004`)** |
 
 ---

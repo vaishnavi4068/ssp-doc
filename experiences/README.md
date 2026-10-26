@@ -46,21 +46,23 @@ flowchart TB
         SDK["4. Client SDK (Python spp-sdk / TS later)\nexperiences/sdk/\nchannel = 'api'"]
     end
 
-    subgraph CP["Control Plane API (ssp-cp FastAPI in K8s ns spp-platform)"]
-        Auth["Auth & RBAC Middleware\nArgon2id Session + X-CSRF-Token\n(Future: OIDC/SSO Bearer JWT)"]
-        Endpoints["Real ssp-cp Endpoints (/api/v1/*)\n+ Proposed Agent/Dry-Run Workflow Endpoints"]
-        OPA["OPA Policy Service (ns spp-policy :8181)\nidp.common, idp.naming, idp.labels,\nidp.gcp.gcs_bucket"]
-        DB[("AlloyDB for PostgreSQL (spp_platform)\nSchema idp (18 tables + v_resource_status)\nZero Secrets (INV-1)")]
-    end
+    subgraph HostProject["SPP-factory-host GCP project (SPP VPC / SPP GKE cluster — Region: us-east1)"]
+        subgraph CP["Control Plane API (ssp-cp FastAPI in K8s ns spp-platform)"]
+            Auth["Auth & RBAC Middleware\nArgon2id Session + X-CSRF-Token\n(Future: OIDC/SSO Bearer JWT)"]
+            Endpoints["Real ssp-cp Endpoints (/api/v1/*)\n+ Proposed Agent/Dry-Run Workflow Endpoints"]
+            OPA["OPA Policy Service (ns spp-policy :8181)\nidp.common, idp.naming, idp.labels,\nidp.gcp.gcs_bucket"]
+            DB[("AlloyDB for PostgreSQL (spp_platform)\nSchema idp (18 tables + v_resource_status)\nZero Secrets (INV-1)")]
+        end
 
-    subgraph Temporal["Temporal Cluster (ns spp-temporal, Temporal namespace: platform)"]
-        AgentTQ["Proposed Task Queue: spp-agent-actions\nAgentValidateRequestWorkflow (wf-val-*)\nAgentSubmitRequestWorkflow (wf-sub-*)\nAgentGetStatusWorkflow / Queries\nAgentApprovalRequestWorkflow (wf-apr-req-*)"]
-        GcsTQ["Existing Task Queue: spp-gcs-provisioning\nGcsBucketProvisionWorkflow (req-<request_id>)\nApprovalGateWorkflow (apr-<request_id>)\nStateUnitReconcilerWorkflow (su-gcp-<project_id>)"]
-    end
+        subgraph Temporal["Temporal Cluster (ns spp-temporal, Temporal namespace: platform)"]
+            AgentTQ["Proposed Task Queue: spp-agent-actions\nAgentValidateRequestWorkflow (wf-val-*)\nAgentSubmitRequestWorkflow (wf-sub-*)\nAgentGetStatusWorkflow / Queries\nAgentApprovalRequestWorkflow (wf-apr-req-*)"]
+            GcsTQ["Existing Task Queue: spp-gcs-provisioning\nGcsBucketProvisionWorkflow (req-<request_id>)\nApprovalGateWorkflow (apr-<request_id>)\nStateUnitReconcilerWorkflow (su-gcp-<project_id>)"]
+        end
 
-    subgraph Execution["Isolated Runner & State (K8s ns spp-platform / us-east1)"]
-        Jobs["Deterministic K8s Jobs\ntf-plan-<20hex> / tf-apply-<20hex>\n(Workload Identity -> Per-Project SA)"]
-        GCS[("Single State Bucket\ngs://microdrive-dev-spp-tfstate\nprojects/<project_id>/{expected,observed,logs}")]
+        subgraph Execution["Isolated Runner & State (K8s ns spp-platform / us-east1)"]
+            Jobs["Deterministic K8s Jobs\ntf-plan-<20hex> / tf-apply-<20hex>\n(Workload Identity -> Per-Project SA)"]
+            GCS[("Single SPP State Bucket (us-east1)\nprojects/<project_id>/{expected,observed,logs}")]
+        end
     end
 
     UI --> Auth

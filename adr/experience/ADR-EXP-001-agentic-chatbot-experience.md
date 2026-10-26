@@ -96,7 +96,7 @@ Define the **Agentic Chatbot Experience** (`experiences/agentic-chat/`, `channel
 
 ## Open Questions
 
-- [ ] **OQ-1 ("Jev Model" Assistant Naming & Vertex AI Model Selection — [Owner: Manoj / Dwayne]):** Formalize the definition of the **"Jev model"** assistant experience and confirm the approved Vertex AI model endpoint in `microdrive-dev` (`us-east1`).
+- [ ] **OQ-1 ("Jev Model" Assistant Naming & Vertex AI Model Selection — [Owner: Manoj / Dwayne]):** Formalize the definition of the **"Jev model"** assistant experience and confirm the approved Vertex AI model endpoint in `<spp-factory-host-project-id>` (`us-east1`).
 - [ ] **OQ-2 (Proposed Dry-Run Validate & Plan Endpoints in `ssp-cp` — [Owner: Manoj / Norm]):** Confirm adding `POST /api/v1/agent/workflows/validate` (or `POST /api/v1/requests/validate`) and `GET /api/v1/requests/{request_id}/plan` to `ssp-cp` (`app/main.py`) to complement the existing `/api/v1/requests`, `/api/v1/approvals`, `/api/v1/resources`, and `/api/v1/audit` routes.
 
 ## Related ADRs

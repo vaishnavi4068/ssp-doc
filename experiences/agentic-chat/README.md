@@ -135,21 +135,23 @@ flowchart TB
         ToolReg["Deterministic Tool Registry\n(Zero Direct Side Effects)"]
     end
 
-    subgraph CP["ssp-cp FastAPI Control Plane (K8s ns: spp-platform)"]
-        Auth["Auth & RBAC (Argon2id Cookie + X-CSRF-Token)"]
-        API["REST Endpoints (/api/v1/kinds, /requests, /approvals, /resources, /audit)\n+ Proposed Agent Workflow Endpoints (/api/v1/agent/workflows/*)"]
-        OPA["OPA Policy Server (ns: spp-policy :8181)\nidp.gcp.gcs_bucket"]
-        DB[("AlloyDB (spp_platform)\nSchema idp (18 tables)")]
-    end
+    subgraph HostProject["SPP-factory-host GCP project (SPP VPC / SPP GKE cluster — Region: us-east1)"]
+        subgraph CP["ssp-cp FastAPI Control Plane (K8s ns: spp-platform)"]
+            Auth["Auth & RBAC (Argon2id Cookie + X-CSRF-Token)"]
+            API["REST Endpoints (/api/v1/kinds, /requests, /approvals, /resources, /audit)\n+ Proposed Agent Workflow Endpoints (/api/v1/agent/workflows/*)"]
+            OPA["OPA Policy Server (ns: spp-policy :8181)\nidp.gcp.gcs_bucket"]
+            DB[("AlloyDB (spp_platform)\nSchema idp (18 tables)")]
+        end
 
-    subgraph Temporal["Temporal Server (ns: spp-temporal, Temporal namespace: platform)"]
-        AgentWF["Proposed Task Queue: spp-agent-actions\n- AgentValidateRequestWorkflow (wf-val-*)\n- AgentSubmitRequestWorkflow (wf-sub-*)\n- AgentGetStatusWorkflow (wf-sts-*)\n- AgentGetPlanWorkflow (wf-pln-*)\n- AgentApprovalRequestWorkflow (wf-apr-*)"]
-        GcsWF["Existing Task Queue: spp-gcs-provisioning\n- GcsBucketProvisionWorkflow (req-<request_id>)\n- ApprovalGateWorkflow (apr-<request_id>)\n- StateUnitReconcilerWorkflow (su-gcp-<project_id>)"]
-    end
+        subgraph Temporal["Temporal Server (ns: spp-temporal, Temporal namespace: platform)"]
+            AgentWF["Proposed Task Queue: spp-agent-actions\n- AgentValidateRequestWorkflow (wf-val-*)\n- AgentSubmitRequestWorkflow (wf-sub-*)\n- AgentGetStatusWorkflow (wf-sts-*)\n- AgentGetPlanWorkflow (wf-pln-*)\n- AgentApprovalRequestWorkflow (wf-apr-*)"]
+            GcsWF["Existing Task Queue: spp-gcs-provisioning\n- GcsBucketProvisionWorkflow (req-<request_id>)\n- ApprovalGateWorkflow (apr-<request_id>)\n- StateUnitReconcilerWorkflow (su-gcp-<project_id>)"]
+        end
 
-    subgraph Runners["Execution & State (K8s ns: spp-platform / us-east1)"]
-        K8sJob["K8s Jobs (tf-plan-<20hex>, tf-apply-<20hex>)\nSA: spp-tf-runner -> spp-deploy@microdrive-dev"]
-        StateBucket[("gs://microdrive-dev-spp-tfstate\nprojects/<project_id>/{expected,observed,logs}")]
+        subgraph Runners["Execution & State (K8s ns: spp-platform / us-east1)"]
+            K8sJob["K8s Jobs (tf-plan-<20hex>, tf-apply-<20hex>)\nSA: spp-tf-runner -> Platform Runner GSA"]
+            StateBucket[("Single SPP State Bucket (us-east1)\nprojects/<project_id>/{expected,observed,logs}")]
+        end
     end
 
     User <--> UI
@@ -282,6 +284,6 @@ Per repository rules, **we do not invent undocumented endpoints as if they alrea
 
 ## 10. Open Questions
 
-- [ ] **OQ-EXP-CHAT-1 ("Jev Model" Definition & Backing LLM Endpoint — [Owner: Manoj / Dwayne]):** Confirm the exact definition, origin, and backing Vertex AI model endpoint/parameters for the **"Jev model"** conversational assistant experience (e.g., whether "Jev model" denotes a fine-tuned Gemini 2.5 Pro configuration on Vertex AI in `microdrive-dev` or an internal conversational persona/architecture codename).
+- [ ] **OQ-EXP-CHAT-1 ("Jev Model" Definition & Backing LLM Endpoint — [Owner: Manoj / Dwayne]):** Confirm the exact definition, origin, and backing Vertex AI model endpoint/parameters for the **"Jev model"** conversational assistant experience (e.g., whether "Jev model" denotes a fine-tuned Gemini 2.5 Pro configuration on Vertex AI in `<spp-factory-host-project-id>` or an internal conversational persona/architecture codename).
 - [ ] **OQ-EXP-CHAT-2 (Dedicated Agent Task Queue `spp-agent-actions` vs. Reusing `spp-gcs-provisioning` — [Owner: Dwayne / Manoj]):** Confirm whether synchronous/short-lived agent tool workflows (`AgentValidateRequestWorkflow`, `AgentGetPlanWorkflow`) should run on a dedicated Temporal task queue `spp-agent-actions` in namespace `platform` (recommended to isolate interactive chat latency from long-running Terraform K8s Job polling on `spp-gcs-provisioning`).
 - [ ] **OQ-EXP-CHAT-3 (Conversation Transcript Retention in AlloyDB — [Owner: Manoj / Raju]):** Confirm the AlloyDB table schema (`idp.agent_conversation`, `idp.agent_message`) and retention window (proposed: 90 days) for storing Jev model chat transcripts and workflow receipts.
