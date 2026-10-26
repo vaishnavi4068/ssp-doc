@@ -10,7 +10,7 @@
 
 ## Goal
 
-Define the Temporal workflow topology (`RequestWorkflow`, `ApprovalGateWorkflow`, `StateUnitReconcilerWorkflow`, and `drift-<project_id>` Schedule), signal contracts, `pre_apply`/`post_apply` lifecycle task execution, and deterministic **one-Kubernetes-Job-per-Terraform-run** execution architecture (`tf-<phase>-<first 20 hex of sha256(operation_id)>`) inside the `spp-platform` namespace on GKE cluster `md-dev` writing state to **`gs://microdrive-dev-spp-tfstate`**.
+Define the Temporal workflow topology (`RequestWorkflow`, `ApprovalGateWorkflow`, `StateUnitReconcilerWorkflow`, and `drift-<project_id>` Schedule), signal contracts, `pre_apply`/`post_apply` lifecycle task execution, and deterministic **one-Kubernetes-Job-per-Terraform-run** execution architecture (`tf-<phase>-<first 20 hex of sha256(operation_id)>`) inside the `spp-platform` namespace on the SPP GKE cluster writing state to **`gs://microdrive-dev-spp-tfstate`**.
 
 ## Context
 
@@ -135,12 +135,12 @@ Materialized from `approved_spec` into `idp.lifecycle_task` with deterministic `
 
 ## Open Questions
 
-- [x] **OQ-1 (Runner Kubernetes Namespace `spp-platform` vs. `idp-runners` — OVERRIDDEN BY USER DECISION 2026-10-21):** *Resolved:* Runner Kubernetes Jobs execute in namespace **`spp-platform`** on GKE cluster `md-dev` (`ADR-CLD-GCP-001`).
+- [x] **OQ-1 (Runner Kubernetes Namespace `spp-platform` vs. `idp-runners` — OVERRIDDEN BY USER DECISION 2026-10-21):** *Resolved:* Runner Kubernetes Jobs execute in namespace **`spp-platform`** on the SPP GKE cluster (`ADR-CLD-GCP-001`).
 - [x] **OQ-2 (State Bucket `gs://microdrive-dev-spp-tfstate` — OVERRIDDEN BY USER DECISION 2026-10-21):** *Resolved:* All state units use the single bucket **`gs://microdrive-dev-spp-tfstate`** in `us-east1`.
 
 ## Related ADRs
 
-- [ADR-CLD-GCP-001: Runtime Platform (GKE `md-dev` and Self-Hosted Temporal)](../per-cloud/gcp/ADR-CLD-GCP-001-runtime-platform-gke-and-temporal.md)
+- [ADR-CLD-GCP-001: Runtime Platform (SPP GKE Cluster and Self-Hosted Temporal)](../per-cloud/gcp/ADR-CLD-GCP-001-runtime-platform-gke-and-temporal.md)
 - [ADR-GLB-003: Four-Gate Provisioning State Model and Storage Layout](../global/ADR-GLB-003-four-state-model.md)
 - [ADR-GLB-004: Data Model and Centralized PostgreSQL Database (AlloyDB for PostgreSQL)](../global/ADR-GLB-004-data-model-and-database.md)
 - [ADR-GLB-007: Governance Gates, Guardrails, Invariants, and Policy (Rego)](../global/ADR-GLB-007-governance-gates-and-policy-rego.md)

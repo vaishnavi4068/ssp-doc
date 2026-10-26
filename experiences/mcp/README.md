@@ -106,22 +106,24 @@ flowchart TB
         AS["OAuth 2.1 Authorization Server\n- RFC 8414 / OIDC Discovery\n- Client ID Metadata Documents\n- Issues audience-bound JWT (aud=https://mcp.spp.internal/mcp)\n- Emits RFC 9207 iss in auth response"]
     end
 
-    subgraph MCPServer["SPP MCP Server (spp-mcp — Python mcp v2.3.0 in K8s ns: spp-platform)"]
-        PRM["GET /.well-known/oauth-protected-resource (RFC 9728)\nresource: https://mcp.spp.internal/mcp\nscopes_supported: spp:catalog:read, spp:requests:read,\nspp:requests:write, spp:approvals:read"]
-        Endpoint["Stateless Streamable HTTP Endpoint (POST /mcp)\n- Validates Origin, MCP-Protocol-Version, Mcp-Method, Mcp-Name, Mcp-Param-*\n- Validates OAuth 2.1 Bearer JWT (RFC 8707 aud + scopes)\n- Verifies AEAD requestState on MRTR retries\n- Secret Scanner (INV-1)"]
-        TasksBridge["MCP Tasks Bridge (io.modelcontextprotocol/tasks)\n- taskId == Temporal workflow_id (req-<request_id>)\n- tasks/get -> Temporal @workflow.query\n- tasks/update -> Temporal @workflow.signal\n- tasks/cancel -> Temporal cancel signal"]
-        SDK["SPP Python Client SDK (spp-sdk)"]
-    end
+    subgraph HostProject["SPP-factory-host GCP project (SPP VPC / SPP GKE cluster — Region: us-east1)"]
+        subgraph MCPServer["SPP MCP Server (spp-mcp — Python mcp v2.3.0 in K8s ns: spp-platform)"]
+            PRM["GET /.well-known/oauth-protected-resource (RFC 9728)\nresource: https://mcp.spp.internal/mcp\nscopes_supported: spp:catalog:read, spp:requests:read,\nspp:requests:write, spp:approvals:read"]
+            Endpoint["Stateless Streamable HTTP Endpoint (POST /mcp)\n- Validates Origin, MCP-Protocol-Version, Mcp-Method, Mcp-Name, Mcp-Param-*\n- Validates OAuth 2.1 Bearer JWT (RFC 8707 aud + scopes)\n- Verifies AEAD requestState on MRTR retries\n- Secret Scanner (INV-1)"]
+            TasksBridge["MCP Tasks Bridge (io.modelcontextprotocol/tasks)\n- taskId == Temporal workflow_id (req-<request_id>)\n- tasks/get -> Temporal @workflow.query\n- tasks/update -> Temporal @workflow.signal\n- tasks/cancel -> Temporal cancel signal"]
+            SDK["SPP Python Client SDK (spp-sdk)"]
+        end
 
-    subgraph ControlPlane["ssp-cp FastAPI Control Plane (K8s ns: spp-platform)"]
-        CPAPI["/api/v1/kinds, /requests, /approvals, /resources, /audit\n+ Proposed /api/v1/agent/workflows/validate & /requests/{id}/plan"]
-        OPA["OPA Server (ns: spp-policy :8181)\nidp.gcp.gcs_bucket"]
-        AlloyDB[("AlloyDB (spp_platform)\nSchema idp")]
-    end
+        subgraph ControlPlane["ssp-cp FastAPI Control Plane (K8s ns: spp-platform)"]
+            CPAPI["/api/v1/kinds, /requests, /approvals, /resources, /audit\n+ Proposed /api/v1/agent/workflows/validate & /requests/{id}/plan"]
+            OPA["OPA Server (ns: spp-policy :8181)\nidp.gcp.gcs_bucket"]
+            AlloyDB[("AlloyDB (spp_platform)\nSchema idp")]
+        end
 
-    subgraph Temporal["Temporal Server (ns: spp-temporal, Temporal namespace: platform)"]
-        AgentQueue["Task Queue: spp-agent-actions (Proposed)\nAgentValidateRequestWorkflow (wf-val-*)\nAgentSubmitRequestWorkflow (wf-sub-*)\nAgentGetStatusWorkflow / AgentGetPlanWorkflow"]
-        GcsQueue["Task Queue: spp-gcs-provisioning (Existing)\nGcsBucketProvisionWorkflow (req-<request_id>)\nApprovalGateWorkflow (apr-<request_id>)\nStateUnitReconcilerWorkflow (su-gcp-<project_id>)"]
+        subgraph Temporal["Temporal Server (ns: spp-temporal, Temporal namespace: platform)"]
+            AgentQueue["Task Queue: spp-agent-actions (Proposed)\nAgentValidateRequestWorkflow (wf-val-*)\nAgentSubmitRequestWorkflow (wf-sub-*)\nAgentGetStatusWorkflow / AgentGetPlanWorkflow"]
+            GcsQueue["Task Queue: spp-gcs-provisioning (Existing)\nGcsBucketProvisionWorkflow (req-<request_id>)\nApprovalGateWorkflow (apr-<request_id>)\nStateUnitReconcilerWorkflow (su-gcp-<project_id>)"]
+        end
     end
 
     Client <-->|"1. 401 WWW-Authenticate -> RFC 9728 Discovery"| PRM
@@ -556,5 +558,5 @@ Mcp-Param-Environment: dev
 
 ## 11. Open Questions
 
-- [ ] **OQ-EXP-MCP-1 (OAuth 2.1 Authorization Server Endpoint for Streamable HTTP — [Owner: Manoj / Raju]):** Confirm whether `ssp-cp` itself hosts the OAuth 2.1 Authorization Server endpoints (`/.well-known/oauth-authorization-server`) in `microdrive-dev` or delegates directly to the corporate OIDC IdP while `spp-mcp` serves `/.well-known/oauth-protected-resource`.
+- [ ] **OQ-EXP-MCP-1 (OAuth 2.1 Authorization Server Endpoint for Streamable HTTP — [Owner: Manoj / Raju]):** Confirm whether `ssp-cp` itself hosts the OAuth 2.1 Authorization Server endpoints (`/.well-known/oauth-authorization-server`) in `<spp-factory-host-project-id>` or delegates directly to the corporate OIDC IdP while `spp-mcp` serves `/.well-known/oauth-protected-resource`.
 - [ ] **OQ-EXP-MCP-2 (Backward-Compatibility Shim for `2025-11-25` MCP Clients — [Owner: Manoj / Dwayne]):** Confirm whether `spp-mcp` (`mcp v2.3.0`) should accept legacy `2025-11-25` `initialize`-handshake clients in `mode="auto"` during transition or strictly require `MCP-Protocol-Version: 2026-07-28`.

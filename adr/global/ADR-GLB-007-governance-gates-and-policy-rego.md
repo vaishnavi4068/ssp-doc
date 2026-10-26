@@ -83,7 +83,7 @@ These nine invariants are the reconciliation gates designed by humans and enforc
 | **`INV-6`** | **Postgres and object storage agree on what was approved** | Before `terraform plan`, the reconciler verifies that each member's `approved_spec_sha256` in `manifest.json` equals `idp.approval.approved_spec_sha256` in AlloyDB; any mismatch blocks the revision (`blocked_reason = 'approved_hash_mismatch'`). |
 | **`INV-7`** | **A run is finished only when its Kubernetes Job is** | `idp.tf_operation.status` is set strictly from the Kubernetes Job's terminal condition (`status.succeeded` / `status.failed`) and Terraform's exit code (`tf_exit_code` `0`, `1`, `2`), never from a submission/dispatch response. |
 | **`INV-8`** | **One writer per state file** | Serialized by the per-project `StateUnitReconcilerWorkflow` (`su-gcp-<project_id>` via signal-with-start) **plus** the GCS backend's native lock (`projects/<project_id>/default.tflock`). |
-| **`INV-9`** | **A kill switch exists at two levels** | 1) Setting `idp.state_unit.status = 'frozen'` in AlloyDB immediately blocks `plan` and `apply` for that project; 2) revoking service-account impersonation on the central platform runner SA (`<runner-sa>@microdrive-dev.iam.gserviceaccount.com`) stops every executor across all projects. |
+| **`INV-9`** | **A kill switch exists at two levels** | 1) Setting `idp.state_unit.status = 'frozen'` in AlloyDB immediately blocks `plan` and `apply` for that project; 2) revoking service-account impersonation on the central platform runner SA (`<runner-sa>@<spp-factory-host-project-id>.iam.gserviceaccount.com`) stops every executor across all projects. |
 
 ### 4. Drift Severity Classification (Alert-Only)
 
