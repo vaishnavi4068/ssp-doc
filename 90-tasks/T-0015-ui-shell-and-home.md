@@ -13,8 +13,8 @@ owner: platform
 App shell (top bar with destination selector, search ⌘K, Sidekick button, orders, theme), left nav with frequent SKUs, Storefront Home from catalog and destinations.
 
 ## Context pack
-- Read: 10-product/16-ui-spec.md §3-4.1; 40-repos/44-ssp-ui-structure.md; 00-constitution/* (always).
-- Repo structure and binding notes: 40-repos/ (file for `ssp-ui`), or 45-ssp-module-template.md for module repos, or 20-apps/ for apps.
+- Read: experiences/portal-ui/16-ui-spec.md §3-4.1; experiences/portal-ui/44-ssp-ui-structure.md; 00-constitution/* (always).
+- Repo structure and binding notes: experiences/portal-ui/44-ssp-ui-structure.md (for `ssp-ui`), or 45-ssp-module-template.md for module repos, or 20-apps/ for apps.
 - Files you may touch: those implied by the goal inside `ssp-ui`; never protected paths (.github/, CODEOWNERS, deploy/foundation/, gate scripts).
 
 ## Acceptance criteria

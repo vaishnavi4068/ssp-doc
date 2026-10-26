@@ -4,7 +4,7 @@ This repository (`ssp-doc`) is the **source of truth for all prerequisite and cr
 
 SPP is built, verified, and governed by an **AI Software Factory ("Dark Factory")** hosted in [`github.com/vaishnavi4068/spp-factory-foundation`](https://github.com/vaishnavi4068/spp-factory-foundation). The software factory consumes ADRs and `specs/` as its **only input**: humans author, review, and sign off ADRs here, and the factory's unified coding agent translates those ADRs into schemas, OPA/Rego policies (`ssp-module-gcs-bucket`, `ssp-module-spanner`), Terraform modules, Python FastAPI control-plane code and Alembic migrations (`ssp-cp`), Temporal workflows (`ssp-workers`), and React UI catalog templates (`ssp-ui`).
 
-> **Scope Boundary:** This repository contains architecture decision records (`adr/`), reconstructed four-gate specifications (`specs/`), source provenance documentation (`docs/source-provenance.md`), the canonical ADR template (`templates/adr-template.md`), repository governance (`CODEOWNERS`), and the multi-repo topology map (`docs/repo-map.md`). It contains **no** runtime application code and **no** secrets.
+> **Scope Boundary:** This repository contains architecture decision records (`adr/`), experience-line specifications (`experiences/`), reconstructed four-gate specifications (`specs/`), source provenance documentation (`docs/source-provenance.md`), the canonical ADR template (`templates/adr-template.md`), repository governance (`CODEOWNERS`), and the multi-repo topology map (`docs/repo-map.md`). It contains **no** runtime application code and **no** secrets.
 
 ---
 
@@ -13,7 +13,8 @@ SPP is built, verified, and governed by an **AI Software Factory ("Dark Factory"
 ```text
 +-----------------------------------------------------------------------------+
 | 1. Human Intent & ADR Authoring (`ssp-doc`)                                 |
-|    - 18 Prerequisite & architecture ADRs authored in `ssp-doc/adr/`         |
+|    - 23 Prerequisite, architecture & experience ADRs authored in `adr/`     |
+|    - Experience-line specs (`experiences/{portal-ui,agentic-chat,mcp,sdk}/`)|
 |    - Reconstructed DDL, naming spec & gate examples in `ssp-doc/specs/`     |
 |    - Reviewed & approved by CODEOWNERS:                                     |
 |      Architect: Manoj | Approvers: Dwayne, Norm | Domain Owners             |
@@ -77,8 +78,21 @@ SPP is built, verified, and governed by an **AI Software Factory ("Dark Factory"
 │   └── examples/
 │       ├── gcs_bucket.gates.json                                      # Reconstructed GCS bucket 4-gate & critical PAP drift walkthrough
 │       └── spanner.gates.json                                         # Reconstructed Spanner 4-gate & drift walkthrough
-└── adr/                                                               # Organised by the 5 ADR levels used in spp-factory-foundation
-    ├── INDEX.md                                                       # Master catalog of all 18 prerequisite ADRs
+├── experiences/                                                       # Experience lines over ssp-cp (GCS bucket feature first, zero privileged paths)
+│   ├── README.md                                                      # Shared principle & experience matrix across Portal UI, Chat, MCP, and SDK
+│   ├── portal-ui/
+│   │   ├── README.md                                                  # Live ssp-ui Portal experience (https://portal.taxi.growripple.ai, Variant 17, nginx proxy)
+│   │   ├── 16-ui-spec.md                                              # Storefront UI design tokens & layout spec (moved via git mv from 10-product/)
+│   │   └── 44-ssp-ui-structure.md                                     # ssp-ui repository structure & binding notes (moved via git mv from 40-repos/)
+│   ├── agentic-chat/
+│   │   ├── README.md                                                  # Agentic chatbot experience ("Jev model" assistant) over ssp-cp
+│   │   └── agent-harness.md                                           # Jev model Agent Harness & deterministic Temporal workflow execution spec
+│   ├── mcp/
+│   │   └── README.md                                                  # MCP server experience (spp-mcp) mapped 1:1 to Temporal workflows
+│   └── sdk/
+│       └── README.md                                                  # Client SDK experience (Python spp-sdk first, TypeScript @spp/sdk later)
+└── adr/                                                               # Organised by the ADR levels used in spp-factory-foundation
+    ├── INDEX.md                                                       # Master catalog of all 23 ADRs (18 prerequisite + 5 experience/harness ADRs)
     ├── OWNERSHIP_MATRIX.md                                            # Stakeholder ownership & sign-off matrix
     ├── global/                                                        # Level 1: Platform-wide invariants
     │   ├── ADR-GLB-001-global-architecture-overview.md
@@ -97,13 +111,19 @@ SPP is built, verified, and governed by an **AI Software Factory ("Dark Factory"
     ├── endpoint-service/                                              # Level 3: Per-service / vertical slice specifications
     │   ├── ADR-SVC-001-first-vertical-slice-gcs-bucket.md
     │   └── ADR-SVC-002-spanner-instance-and-database.md
+    ├── experience/                                                    # Level 3 (Experience Lines): Portal UI, Chatbot, MCP Server, and Client SDK over ssp-cp
+    │   ├── ADR-EXP-001-agentic-chatbot-experience.md
+    │   ├── ADR-EXP-002-mcp-server-experience.md
+    │   ├── ADR-EXP-003-client-sdk-experience.md
+    │   └── ADR-EXP-004-portal-ui-experience.md
     ├── per-cloud/                                                     # Level 4: Cloud-specific runtime & target architectures
     │   └── gcp/
     │       └── ADR-CLD-GCP-001-runtime-platform-gke-and-temporal.md
-    └── automation/                                                    # Level 5: Runner execution, Day-2 ops, factory flow
+    └── automation/                                                    # Level 5: Runner execution, Day-2 ops, factory flow, agent harness workflows
         ├── ADR-AUT-001-terraform-execution-k8s-job.md
         ├── ADR-AUT-002-day-2-operations-scope.md
-        └── ADR-AUT-003-software-factory-adr-flow.md
+        ├── ADR-AUT-003-software-factory-adr-flow.md
+        └── ADR-AUT-004-agent-harness-and-temporal-workflow-execution.md
 ```
 
 ---
@@ -114,9 +134,9 @@ SPP is built, verified, and governed by an **AI Software Factory ("Dark Factory"
 | :--- | :--- | :--- | :--- |
 | **1. Global** | [`adr/global/`](adr/global/) | `ADR-GLB-NNN` | Architecture overview, language stack, 4-gate state model (`Requested`/`Approved` in AlloyDB Postgres, `Expected`/`Observed` in `gs://microdrive-dev-spp-tfstate`, `<= 2 KB` Observed projections), 18-table `idp` data model on dedicated AlloyDB (`spp_platform`), Workload Identity & auth, naming conventions (`nonprod`/`prod`), OPA/Rego governance gates & invariants (`INV-1..INV-9`), label standard (`LBL-001`/`LBL-002`), and resource kind registry (`idp.resource_kind`) |
 | **2. Business Process** | [`adr/business-process/`](adr/business-process/) | `ADR-BP-NNN` | Ownership map, 6-phase product build order, and roles/personas/sequential approval gates (`gcs_bucket_owner`, `spanner_data_owner`, SLA escalation, self-approval denial, mandatory human approval on all deletes) |
-| **3. Endpoint / Service** | [`adr/endpoint-service/`](adr/endpoint-service/) | `ADR-SVC-NNN` | Per-kind specifications and guardrail rules for `gcs_bucket` (`ADR-SVC-001`, `GCS-*`) and `spanner_instance` / `spanner_database` (`ADR-SVC-002`, `SPN-*`) |
+| **3. Endpoint / Service & Experience Lines** | [`adr/endpoint-service/`](adr/endpoint-service/), [`adr/experience/`](adr/experience/) | `ADR-SVC-NNN`, `ADR-EXP-NNN` | Per-kind specifications and guardrail rules for `gcs_bucket` (`ADR-SVC-001`, `GCS-*`) and `spanner_instance` / `spanner_database` (`ADR-SVC-002`, `SPN-*`), plus multi-channel experience lines over `ssp-cp` (`ADR-EXP-001` Agentic Chatbot, `ADR-EXP-002` MCP Server, `ADR-EXP-003` Client SDK, `ADR-EXP-004` Portal UI; see [`experiences/`](experiences/)) |
 | **4. Per Cloud** | [`adr/per-cloud/gcp/`](adr/per-cloud/gcp/) | `ADR-CLD-GCP-NNN` | GCP runtime platform (`md-dev`, dedicated tainted `spp-pool`, K8s namespaces `spp-temporal`/`spp-factory`/`spp-platform`, self-hosted Temporal with Postgres, Temporal namespaces `factory` and `platform`) and GCP 2.0 target architecture in `us-east1` |
-| **5. Automation** | [`adr/automation/`](adr/automation/) | `ADR-AUT-NNN` | Temporal workflows (`req-*`, `apr-*`, `su-gcp-*`, `drift-*`), deterministic K8s Job Terraform execution (`tf-<phase>-<20hex>` in `spp-platform`, state in `gs://microdrive-dev-spp-tfstate`), Day-2 operations & alert-only drift detection, and software factory ADR flow |
+| **5. Automation** | [`adr/automation/`](adr/automation/) | `ADR-AUT-NNN` | Temporal workflows (`req-*`, `apr-*`, `su-gcp-*`, `drift-*`), deterministic K8s Job Terraform execution (`tf-<phase>-<20hex>` in `spp-platform`, state in `gs://microdrive-dev-spp-tfstate`), Day-2 operations & alert-only drift detection, software factory ADR flow, and the **Jev model Agent Harness & deterministic Temporal workflow execution layer (`ADR-AUT-004`)** |
 
 ---
 
@@ -128,4 +148,4 @@ See **[`docs/repo-map.md`](docs/repo-map.md)** and **[`docs/source-provenance.md
 - **`ssp-cp`**: Control plane runtime code (Python FastAPI, local auth now / SSO later, AlloyDB PostgreSQL models & **Alembic DB migrations derived from `specs/data-model/spp_state_model.sql`**, `Requested`/`Approved` gate management, OPA policy evaluation, and naming/label validation from `specs/naming/naming-spec.json`).
 - **`ssp-workers`**: Python Temporal workflows and activities (on Temporal namespace `platform`) for `RequestWorkflow`, `ApprovalGateWorkflow`, `StateUnitReconcilerWorkflow`, and `DriftSchedule`, plus the deterministic Kubernetes Job Terraform runner launcher (`tf-<phase>-<20hex>` in `spp-platform`).
 - **`ssp-module-gcs-bucket`** and **[`ssp-module-spanner`](https://github.com/vaishnavi4068/ssp-module-spanner)**: Per-kind Terraform modules and OPA/Rego policy packages implementing `ADR-SVC-001` (`gcs_bucket`) and `ADR-SVC-002` (`spanner_instance`, `spanner_database`).
-- **`ssp-ui`**: React + TypeScript self-service portal and embedded chat assistant (built in Phase 5 after GCS end-to-end and Day-2 are proven).
+- **`ssp-ui`**: React + TypeScript self-service portal (`https://portal.taxi.growripple.ai`, IDP Design Variant 17, nginx reverse proxy to `spp-cp`; see [`experiences/portal-ui/`](experiences/portal-ui/) and [`ADR-EXP-004`](adr/experience/ADR-EXP-004-portal-ui-experience.md)).

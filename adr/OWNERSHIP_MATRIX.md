@@ -39,7 +39,12 @@ Every ADR in `ssp-doc` requires a tracked owner consisting of **both** a shared 
 | **ADR-BP-003** | `business-process` | Roles, Personas, and Approval Gate Governance | Norm | `spp-governance@tbd` | Manoj, Dwayne, Norm, Allen/Karen, Raju | Proposed (Unsigned) |
 | **ADR-SVC-001** | `endpoint-service` | First Vertical Slice — GCS Bucket (`gcs_bucket`) End-to-End and Guardrails | Manoj | `spp-storage-gcp@tbd` | Manoj, Dwayne, Norm, Raju | Proposed (Unsigned) |
 | **ADR-SVC-002** | `endpoint-service` | Cloud Spanner Instance (`spanner_instance`) and Database (`spanner_database`) Specification | Manoj | `spp-database-gcp@tbd` | Manoj, Dwayne, Norm, Karen, Raju | Proposed (Unsigned) |
+| **ADR-EXP-001** | `endpoint-service` (`experience`) | Agentic Chatbot Experience for Self-Service Provisioning | Dwayne | `spp-experience@tbd` | Manoj, Dwayne, Norm, Raju | Proposed (Unsigned) |
+| **ADR-EXP-002** | `endpoint-service` (`experience`) | MCP Server Experience for Self-Service Provisioning | Manoj | `spp-experience@tbd` | Manoj, Dwayne, Norm, Raju | Proposed (Unsigned) |
+| **ADR-EXP-003** | `endpoint-service` (`experience`) | Client SDK Experience (Python First, TypeScript Later) | Manoj | `spp-experience@tbd` | Manoj, Dwayne, Norm | Proposed (Unsigned) |
+| **ADR-EXP-004** | `endpoint-service` (`experience`) | Portal UI Experience (`ssp-ui` Storefront on IDP Design Variant 17) | Dwayne | `spp-experience@tbd` | Manoj, Dwayne, Norm, Raju | Proposed (Unsigned) |
 | **ADR-CLD-GCP-001** | `per-cloud (gcp)` | Runtime Platform (GKE `md-dev`, Tainted `spp-pool`, Namespaces, and Self-Hosted Temporal) | Manoj | `spp-cloud-gcp@tbd` | Manoj, Dwayne, Norm | Proposed (Unsigned) |
 | **ADR-AUT-001** | `automation` | Temporal Orchestration and Terraform Execution via Deterministic Kubernetes Jobs | Dwayne | `spp-automation@tbd` | Manoj, Dwayne, Norm | Proposed (Unsigned) |
 | **ADR-AUT-002** | `automation` | Day-2 Operations, Drift Detection, and Deletion Governance | Norm | `spp-automation@tbd` | Manoj, Dwayne, Norm, Allen/Karen | Proposed (Unsigned) |
 | **ADR-AUT-003** | `automation` | Software Factory ADR Flow, 10 Role Skills, and Verification Gates | Manoj | `spp-factory@tbd` | Manoj, Dwayne, Norm | Proposed (Unsigned) |
+| **ADR-AUT-004** | `automation` | Agent Harness ("Jev Model") and Deterministic Temporal Workflow Execution Layer | Manoj | `spp-automation@tbd` | Manoj, Dwayne, Norm, Raju | Proposed (Unsigned) |

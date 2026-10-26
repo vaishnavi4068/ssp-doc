@@ -1,6 +1,6 @@
 # 21 — Control Room Specification (`ssp-control-room`, new repo)
 
-The operator console for the platform team. Same design system as the storefront (tokens from `10-product/16-ui-spec.md`), different information architecture: fleet first, then drill-down, with an operator agent chat that turns instructions into confirmed platform actions. It uses only `ssp-cp` `/v1/ops/*`, `/v1/runs/*`, `/v1/imports/*` and `/v1/assistant/*` endpoints; it has no database of its own.
+The operator console for the platform team. Same design system as the storefront (tokens from `experiences/portal-ui/16-ui-spec.md`), different information architecture: fleet first, then drill-down, with an operator agent chat that turns instructions into confirmed platform actions. It uses only `ssp-cp` `/v1/ops/*`, `/v1/runs/*`, `/v1/imports/*` and `/v1/assistant/*` endpoints; it has no database of its own.
 
 ## 1. Personas and access
 

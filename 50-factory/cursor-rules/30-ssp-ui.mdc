@@ -6,7 +6,7 @@ alwaysApply: false
 
 # UI rules
 
-- Design reference is ssp-doc/10-product/16-ui-spec.md (prototype Gemini 4 Argon / shadcn-stack / #17). Use tokens from `@ssp/ui` only; no ad-hoc colors, radii or fonts.
+- Design reference is ssp-doc/experiences/portal-ui/16-ui-spec.md (prototype Gemini 4 Argon / shadcn-stack / #17). Use tokens from `@ssp/ui` only; no ad-hoc colors, radii or fonts.
 - Zero service-specific code: every service screen renders from `request.schema.json` + `ui.yaml` through `@ssp/form-renderer`; the `unknown-service` fixture must render.
 - Money, guardrails, policy results, ETA and code views come from server responses (`preflight`, `code`); the client computes nothing authoritative.
 - Place-order buttons exist only when a server `preview_hash` is present; on 409 refresh the receipt and ask again.
