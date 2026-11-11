@@ -14,18 +14,26 @@ fi
 
 resolve_repo() {
   local var="$1" name="$2" default_rel="$3"
-  if [[ -z "${!var:-}" ]]; then
+  local path="${!var:-}"
+  if [[ -z "$path" ]]; then
     if [[ -d "$ROOT/$default_rel" ]]; then
-      export "$var"="$ROOT/$default_rel"
+      path="$(cd "$ROOT/$default_rel" && pwd)"
     else
       echo "error: set $var to your $name checkout (see .env.example)" >&2
       exit 1
     fi
+  elif [[ "$path" != /* ]]; then
+    if [[ ! -d "$ROOT/$path" ]] && [[ ! -d "$path" ]]; then
+      echo "error: $var=$path is not a directory (cwd=$ROOT)" >&2
+      exit 1
+    fi
+    path="$(cd "$ROOT/$path" 2>/dev/null && pwd)" || path="$(cd "$path" && pwd)"
   fi
-  if [[ ! -d "${!var}/.git" ]]; then
-    echo "error: $var=${!var} is not a git checkout" >&2
+  if [[ ! -e "$path/.git" ]]; then
+    echo "error: $var=$path is not a git checkout (missing .git — re-clone with git clone)" >&2
     exit 1
   fi
+  export "$var"="$path"
 }
 
 resolve_repo SSP_CP_REPO ssp-cp ../ssp-cp
