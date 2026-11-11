@@ -1,0 +1,115 @@
+# SSP local laptop stack: Postgres, Temporal, control plane API, worker, portal UI.
+# Low-effort E2E without GKE. Real Terraform apply is off (worker memory mode).
+#
+# Usage: see README.md — ./up.sh
+
+name: spp-local
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - spp-pgdata:/var/lib/postgresql/data
+      - ./init/01-spp-platform.sql:/docker-entrypoint-initdb.d/01-spp-platform.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 3s
+      timeout: 5s
+      retries: 15
+
+  temporal:
+    image: temporalio/auto-setup:1.27.2
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB: postgres12
+      DB_PORT: 5432
+      POSTGRES_USER: postgres
+      POSTGRES_PWD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_SEEDS: postgres
+    ports:
+      - "${TEMPORAL_PORT:-7233}:7233"
+
+  temporal-ui:
+    image: temporalio/ui:2.34.0
+    depends_on:
+      - temporal
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_CORS_ORIGINS: http://localhost:3000,http://localhost:8080
+    ports:
+      - "${TEMPORAL_UI_PORT:-8088}:8080"
+
+  migrate:
+    build:
+      context: ${SSP_CP_REPO:?Set SSP_CP_REPO to your ssp-cp checkout}
+      dockerfile: Dockerfile
+    entrypoint: ["/usr/local/bin/migrate", "up"]
+    environment:
+      SSP_DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/spp_platform?sslmode=disable
+      SSP_MIGRATIONS_DIR: /db/migrations
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  ssp-cp:
+    build:
+      context: ${SSP_CP_REPO}
+      dockerfile: Dockerfile
+    ports:
+      - "${SSP_API_PORT:-8080}:8080"
+    environment:
+      SSP_DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/spp_platform?sslmode=disable
+      SSP_OPA_SKIP: "true"
+      SSP_AUTH_DISABLED: "true"
+      SSP_TEMPORAL_ENABLED: "true"
+      SSP_TEMPORAL_ADDRESS: temporal:7233
+      SSP_TEMPORAL_NAMESPACE: default
+      SSP_TEMPORAL_TASK_QUEUE: spp-gcs-provisioning
+      SSP_TEMPORAL_GCS_WORKFLOW: GcsBucketProvisionWorkflow
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      temporal:
+        condition: service_started
+
+  ssp-workers:
+    build:
+      context: ${SSP_WORKERS_REPO:?Set SSP_WORKERS_REPO to your ssp-workers checkout}
+      dockerfile: Dockerfile
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_NAMESPACE: default
+      TEMPORAL_TASK_QUEUE: spp-gcs-provisioning
+      SSP_WORKER_USE_K8S: "false"
+      SSP_WORKER_USE_GCS: "false"
+      SSP_WORKER_USE_DB: "false"
+      SSP_WORKER_PYTHON_ACTIVITIES: "false"
+    depends_on:
+      temporal:
+        condition: service_started
+      ssp-cp:
+        condition: service_started
+
+  ssp-ui:
+    build:
+      context: ${SSP_UI_REPO:?Set SSP_UI_REPO to your ssp-ui checkout}
+      dockerfile: Dockerfile
+    ports:
+      - "${SSP_PORTAL_PORT:-3000}:8080"
+    environment:
+      SPP_API_URL: http://localhost:${SSP_API_PORT:-8080}
+      VITE_SPP_API_URL: http://localhost:${SSP_API_PORT:-8080}
+    depends_on:
+      ssp-cp:
+        condition: service_started
+
+volumes:
+  spp-pgdata:
