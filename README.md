@@ -4,7 +4,11 @@ This repository (`ssp-doc`) is the **source of truth for all prerequisite and cr
 
 SPP is built, verified, and governed by an **AI Software Factory ("Dark Factory")** hosted in [`github.com/vaishnavi4068/spp-factory-foundation`](https://github.com/vaishnavi4068/spp-factory-foundation). The software factory consumes ADRs and `specs/` as its **only input**: humans author, review, and sign off ADRs here, and the factory's unified coding agent translates those ADRs into schemas, OPA/Rego policies (`ssp-module-gcs-bucket`, `ssp-module-spanner`), Terraform modules, Python FastAPI control-plane code and Alembic migrations (`ssp-cp`), Temporal workflows (`ssp-workers`), and React UI catalog templates (`ssp-ui`).
 
-> **Scope Boundary:** This repository contains architecture decision records (`adr/`), experience-line specifications (`experiences/`), reconstructed four-gate specifications (`specs/`), source provenance documentation (`docs/source-provenance.md`), the canonical ADR template (`templates/adr-template.md`), repository governance (`CODEOWNERS`), and the multi-repo topology map (`docs/repo-map.md`). It contains **no** runtime application code and **no** secrets.
+> **Scope Boundary:** This repository contains architecture decision records (`adr/`), experience-line specifications (`experiences/`), reconstructed four-gate specifications (`specs/`), source provenance documentation (`docs/source-provenance.md`), the canonical ADR template (`templates/adr-template.md`), repository governance (`CODEOWNERS`), and the multi-repo topology map (`docs/repo-map.md`). It contains **no** runtime application code and **no** secrets (except **local-dev** Docker Compose helpers under [`local-dev/`](local-dev/README.md)).
+
+### Run the product on a laptop (local E2E)
+
+See **[`local-dev/PORTABLE.md`](local-dev/PORTABLE.md)** — on a new machine: `cd ssp-doc/local-dev && ./install.sh --bootstrap`. **Claude Code:** `/spp-local-setup` (`.claude/skills/spp-local-setup/SKILL.md`).
 
 ---
 
