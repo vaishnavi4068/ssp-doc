@@ -16,7 +16,8 @@ cd ~/ssp/ssp-doc
 git checkout cursor/local-dev-compose-b7b7 && git pull
 
 cd local-dev
-rm -f .env          # optional; only recreate if you need Sidekick API key
+rm -f .env          # removes wrong SSP_*_REPO paths; recreate only for Sidekick key
+git pull origin cursor/local-dev-compose-b7b7   # latest up.sh
 ./up.sh
 ```
 

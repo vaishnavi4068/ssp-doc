@@ -12,13 +12,40 @@ if [[ -f .env ]]; then
   set +a
 fi
 
-# Sibling layout: ~/ssp/ssp-doc/local-dev → ../ssp-cp is ~/ssp/ssp-cp
+# Sibling layout: ~/ssp/{ssp-doc,ssp-cp,ssp-workers,ssp-ui}
 WORKSPACE="$(cd "$ROOT/.." && pwd)"
+
+is_git_repo() {
+  git -C "$1" rev-parse --is-inside-work-tree &>/dev/null
+}
+
+expand_home() {
+  local p="$1"
+  if [[ "$p" == "~/"* ]]; then
+    p="${HOME}/${p:2}"
+  elif [[ "$p" == "~" ]]; then
+    p="$HOME"
+  fi
+  printf '%s' "$p"
+}
+
+# Drop invalid paths from .env so siblings auto-detect (common typo: wrong /Users/... in .env)
+for _var in SSP_CP_REPO SSP_WORKERS_REPO SSP_UI_REPO; do
+  _p="${!_var:-}"
+  if [[ -n "$_p" ]]; then
+    _p="$(expand_home "$_p")"
+    export "$_var=$_p"
+    if ! is_git_repo "$_p"; then
+      echo "note: ignoring $_var=$_p (not a git repo)" >&2
+      unset "$_var"
+    fi
+  fi
+done
 
 resolve_repo() {
   local var="$1" name="$2" folder="$3"
-  local path="${!var:-}"
   local candidates=()
+  local path="${!var:-}"
   [[ -n "$path" ]] && candidates+=("$path")
   candidates+=("$WORKSPACE/$folder" "$ROOT/../$folder")
 
@@ -35,15 +62,14 @@ resolve_repo() {
     else
       continue
     fi
-  if [[ -e "$resolved/.git" ]]; then
+    if is_git_repo "$resolved"; then
       export "$var"="$resolved"
       return 0
     fi
-    resolved=""
   done
-  echo "error: could not find $name git clone. Expected sibling folder:" >&2
+  echo "error: could not find $name. Put clones here (no .env paths needed):" >&2
   echo "  $WORKSPACE/$folder" >&2
-  echo "Optional: set absolute $var in .env (remove broken ../ lines from .env)" >&2
+  echo "Run: cd $WORKSPACE/$folder && pwd && git status" >&2
   exit 1
 }
 
