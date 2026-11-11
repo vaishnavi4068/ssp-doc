@@ -2,6 +2,10 @@
 
 One-command dev environment for **Postgres**, **Temporal**, **ssp-cp** (Go API), **ssp-workers** (Go workflows, memory Terraform), and **ssp-ui** (portal). Use this when porting SPP to company laptops or doing end-to-end tests without GKE.
 
+**Local-only data plane:** Postgres runs in Docker on `localhost:5432` (volume `spp-pgdata`). Temporal uses that same local Postgres instance. The control plane never talks to Cloud SQL in this profile.
+
+**Claude Code:** project skill **`.claude/skills/spp-local-setup/SKILL.md`** — invoke `/spp-local-setup` or ask to build local E2E; the agent should run `local-dev/up.sh`, not cloud DB URLs.
+
 ## Prerequisites
 
 - Docker Engine 24+ with Compose v2 (`docker compose`)

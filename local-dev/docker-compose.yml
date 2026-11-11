@@ -1,4 +1,6 @@
 # SSP local laptop stack: Postgres, Temporal, control plane API, worker, portal UI.
+# All data services are LOCAL (Docker on localhost). Do not wire Cloud SQL here.
+# Postgres hosts both Temporal (auto-setup) and spp_platform (init SQL + migrations).
 # Low-effort E2E without GKE. Real Terraform apply is off (worker memory mode).
 #
 # Usage: see README.md — ./up.sh
