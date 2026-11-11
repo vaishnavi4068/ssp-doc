@@ -5,7 +5,7 @@
 | `ssp-doc` | Specs, ADRs, tasks, factory rules (this repo) | Markdown, YAML, JSON Schema | — | T0 (docs) / T3 (constitution, factory) |
 | `ssp-cp` | Go API (`ssp-api`), control worker (workflows + control-plane activities), policy baseline build, catalogctl, DB migrations, Helm chart | Go 1.23, chi, oapi-codegen, sqlc, Temporal SDK, OPA | GKE `ssp-cp` | T2 |
 | `ssp-workers` | `tf-worker`, `tf-runner` image, `postbuild-worker`, `drift-worker`, `gcsutil`, twins of ServiceNow/CMDB/Infoblox for tests | Go, bash, Docker | GKE `ssp-workers`, Jobs in `ssp-runs` | T2 (T3 for runner image security settings) |
-| `ssp-ui` | Storefront, `@ssp/form-renderer`, `@ssp/ui` tokens | Next.js 15, TS, Tailwind v4, shadcn/ui | GKE `ssp-ui` | T2 |
+| `ssp-ui` | Storefront, `@ssp/form-renderer`, `@ssp/ui` tokens | **Go** `cmd/portal` + React (Vite/TS, Tailwind) | GKE `ssp-ui` | T2 |
 | `ssp-module-<service>` | One Terraform module + ServiceSpec + request schema + ui.yaml + pricing + Rego + import mapping + tests; publishes a catalog bundle | Terraform, Rego | catalog bucket | T1 (new) / T2 (in use) |
 | `ssp-control-room` | Operator console + operator chat UI | Next.js, shared `@ssp/ui` | GKE `ssp-control-room` | T2 |
 | `ssp-migrate` | Migration wizard | Next.js, shared `@ssp/ui` | GKE `ssp-migrate` | T2 |
