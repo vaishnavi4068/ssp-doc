@@ -58,8 +58,23 @@ Remove DB volume: `./down.sh -v`
 | **Auth** | Disabled (`SSP_AUTH_DISABLED=true`) — use `X-SSP-User` header |
 | **Terraform apply** | **Not** run — worker uses memory activities (no K8s/GCS) |
 | **Terraform CLI** | Not in compose; module repos tested with `terraform test` on the host |
+| **Sidekick chat (portal)** | Needs `SSP_ASSISTANT_ENABLED=true` + `SSP_ASSISTANT_API_KEY` in `.env`, then **Sidekick** button on http://localhost:3000 (calls `ssp-cp` `/v1/assistant/*`; key stays on server) |
 
 To exercise **real** plan/apply you still need GKE + runner image (see `ssp-workers` README). This stack validates **intake → approval → Temporal dispatch → worker workflow** on a laptop.
+
+### Enable Sidekick (local LLM)
+
+1. Copy `.env.example` → `.env` if you have not already.
+2. Set (do **not** commit):
+
+   ```bash
+   SSP_ASSISTANT_ENABLED=true
+   SSP_ASSISTANT_API_KEY=sk-ant-...   # or OPENAI via SSP_ASSISTANT_PROVIDER=openai
+   ```
+
+3. Rebuild API: `docker compose up -d --build ssp-cp` (or full `./up.sh`).
+
+This is a **local-dev slice** of SSP-CHAT (Q&A only—no tool submit/approve yet). Production uses Vertex/enterprise endpoints per spec.
 
 ## Optional: UI dev server instead of container
 

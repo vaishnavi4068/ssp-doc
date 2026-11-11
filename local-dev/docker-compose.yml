@@ -71,6 +71,12 @@ services:
       SSP_DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/spp_platform?sslmode=disable
       SSP_OPA_SKIP: "true"
       SSP_AUTH_DISABLED: "true"
+      SSP_CORS_ORIGINS: "http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173"
+      SSP_ASSISTANT_ENABLED: "${SSP_ASSISTANT_ENABLED:-false}"
+      SSP_ASSISTANT_API_KEY: "${SSP_ASSISTANT_API_KEY:-}"
+      SSP_ASSISTANT_PROVIDER: "${SSP_ASSISTANT_PROVIDER:-anthropic}"
+      SSP_ASSISTANT_MODEL: "${SSP_ASSISTANT_MODEL:-claude-3-5-haiku-20241022}"
+      SSP_ASSISTANT_BASE_URL: "${SSP_ASSISTANT_BASE_URL:-}"
       SSP_TEMPORAL_ENABLED: "true"
       SSP_TEMPORAL_ADDRESS: temporal:7233
       SSP_TEMPORAL_NAMESPACE: default

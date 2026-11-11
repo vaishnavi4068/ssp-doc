@@ -95,10 +95,23 @@ cd "$SSP_CP_REPO" && go run ./cmd/migrate up
 SSP_OPA_SKIP=true SSP_AUTH_DISABLED=true go run ./cmd/api
 ```
 
+## Optional: Sidekick chat (LLM)
+
+Put the provider key only in `local-dev/.env` (never in git or chat):
+
+```bash
+SSP_ASSISTANT_ENABLED=true
+SSP_ASSISTANT_API_KEY=<user supplies in .env>
+SSP_ASSISTANT_PROVIDER=anthropic   # or openai
+```
+
+Rebuild `ssp-cp`, open portal → **Sidekick** button (bottom right). API routes: `/v1/assistant/conversations` and `.../messages`.
+
 ## Out of scope for this stack
 
 - Real Terraform apply / GKE (worker uses memory activities).
 - OPA sidecar (skipped via `SSP_OPA_SKIP=true`).
+- Full agentic submit/approve tools (chat is Q&A only locally).
 - Terraform module repos: run `terraform test` on the host separately.
 
 ## Reference
