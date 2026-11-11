@@ -12,33 +12,44 @@ if [[ -f .env ]]; then
   set +a
 fi
 
+# Sibling layout: ~/ssp/ssp-doc/local-dev → ../ssp-cp is ~/ssp/ssp-cp
+WORKSPACE="$(cd "$ROOT/.." && pwd)"
+
 resolve_repo() {
-  local var="$1" name="$2" default_rel="$3"
+  local var="$1" name="$2" folder="$3"
   local path="${!var:-}"
-  if [[ -z "$path" ]]; then
-    if [[ -d "$ROOT/$default_rel" ]]; then
-      path="$(cd "$ROOT/$default_rel" && pwd)"
+  local candidates=()
+  [[ -n "$path" ]] && candidates+=("$path")
+  candidates+=("$WORKSPACE/$folder" "$ROOT/../$folder")
+
+  local resolved=""
+  for c in "${candidates[@]}"; do
+    [[ -z "$c" ]] && continue
+    if [[ "$c" == /* ]]; then
+      [[ -d "$c" ]] || continue
+      resolved="$(cd "$c" && pwd)"
+    elif [[ -d "$ROOT/$c" ]]; then
+      resolved="$(cd "$ROOT/$c" && pwd)"
+    elif [[ -d "$c" ]]; then
+      resolved="$(cd "$c" && pwd)"
     else
-      echo "error: set $var to your $name checkout (see .env.example)" >&2
-      exit 1
+      continue
     fi
-  elif [[ "$path" != /* ]]; then
-    if [[ ! -d "$ROOT/$path" ]] && [[ ! -d "$path" ]]; then
-      echo "error: $var=$path is not a directory (cwd=$ROOT)" >&2
-      exit 1
+  if [[ -e "$resolved/.git" ]]; then
+      export "$var"="$resolved"
+      return 0
     fi
-    path="$(cd "$ROOT/$path" 2>/dev/null && pwd)" || path="$(cd "$path" && pwd)"
-  fi
-  if [[ ! -e "$path/.git" ]]; then
-    echo "error: $var=$path is not a git checkout (missing .git — re-clone with git clone)" >&2
-    exit 1
-  fi
-  export "$var"="$path"
+    resolved=""
+  done
+  echo "error: could not find $name git clone. Expected sibling folder:" >&2
+  echo "  $WORKSPACE/$folder" >&2
+  echo "Optional: set absolute $var in .env (remove broken ../ lines from .env)" >&2
+  exit 1
 }
 
-resolve_repo SSP_CP_REPO ssp-cp ../ssp-cp
-resolve_repo SSP_WORKERS_REPO ssp-workers ../ssp-workers
-resolve_repo SSP_UI_REPO ssp-ui ../ssp-ui
+resolve_repo SSP_CP_REPO ssp-cp ssp-cp
+resolve_repo SSP_WORKERS_REPO ssp-workers ssp-workers
+resolve_repo SSP_UI_REPO ssp-ui ssp-ui
 
 export SSP_CP_REPO SSP_WORKERS_REPO SSP_UI_REPO
 

@@ -24,12 +24,15 @@ Or copy `.env.example` → `.env` and set `SSP_CP_REPO`, `SSP_WORKERS_REPO`, `SS
 
 ## Quick start
 
+See **[SIMPLE.md](SIMPLE.md)** for the shortest path.
+
 ```bash
 cd ssp-doc/local-dev
-cp -n .env.example .env   # optional
 chmod +x up.sh down.sh
-./up.sh
+./up.sh                    # no .env required for basic stack
 ```
+
+Use `.env` only for **Sidekick** (`SSP_ASSISTANT_*`) or port overrides — **do not** set `SSP_*_REPO=../...` unless paths are wrong.
 
 Open **http://localhost:3000** (portal). Submit a GCS bucket request; approve via API or portal when auth is enabled in your branch.
 
