@@ -12,8 +12,8 @@ if [[ -f .env ]]; then
   set +a
 fi
 
-# Sibling layout: ~/ssp/{ssp-doc,ssp-cp,ssp-workers,ssp-ui}
-WORKSPACE="$(cd "$ROOT/.." && pwd)"
+# Sibling layout: ~/ssp/{ssp-doc,ssp-cp,ssp-workers,ssp-ui} with up.sh in ssp-doc/local-dev
+WORKSPACE="$(cd "$ROOT/../.." && pwd)"
 
 is_git_repo() {
   git -C "$1" rev-parse --is-inside-work-tree &>/dev/null
