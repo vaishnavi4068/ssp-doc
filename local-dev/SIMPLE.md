@@ -1,35 +1,14 @@
 # Simplest local start
 
-**Layout** (only requirement):
+**New laptop:** see **[PORTABLE.md](PORTABLE.md)** — one command: `./install.sh --bootstrap`
 
-```text
-~/ssp/ssp-doc/     ← you are in local-dev here
-~/ssp/ssp-cp/
-~/ssp/ssp-workers/
-~/ssp/ssp-ui/
-```
-
-**Commands:**
+**Daily use** (repos already under `~/ssp`):
 
 ```bash
-cd ~/ssp/ssp-doc
-git checkout cursor/local-dev-compose-b7b7 && git pull
-
-cd local-dev
-rm -f .env          # removes wrong SSP_*_REPO paths; recreate only for Sidekick key
-git pull origin cursor/local-dev-compose-b7b7   # latest up.sh
-./up.sh
+cd ~/ssp/ssp-doc/local-dev
+./install.sh
 ```
 
-Open http://localhost:3000
+Open http://localhost:3000 · stop: `./down.sh` · check: `./verify.sh`
 
-**Sidekick only:** create `.env` with just:
-
-```bash
-SSP_ASSISTANT_ENABLED=true
-SSP_ASSISTANT_API_KEY=your-key
-```
-
-Do **not** put `SSP_CP_REPO=../ssp-cp` in `.env` — siblings are auto-detected.
-
-Stop: `./down.sh`
+**Sidekick only:** `.env` with `SSP_ASSISTANT_ENABLED=true` and `SSP_ASSISTANT_API_KEY=...` (never `SSP_*_REPO` lines).

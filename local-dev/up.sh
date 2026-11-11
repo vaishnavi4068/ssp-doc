@@ -47,7 +47,7 @@ resolve_repo() {
   local candidates=()
   local path="${!var:-}"
   [[ -n "$path" ]] && candidates+=("$path")
-  candidates+=("$WORKSPACE/$folder" "$ROOT/../$folder")
+  candidates+=("$WORKSPACE/$folder" "$ROOT/../../$folder")
 
   local resolved=""
   for c in "${candidates[@]}"; do

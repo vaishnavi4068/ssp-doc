@@ -33,16 +33,21 @@ workspace/
 
 ## Build and start (default path)
 
-From the repo root:
+**New machine:**
 
 ```bash
-cd local-dev
-cp -n .env.example .env    # optional: absolute SSP_*_REPO paths
-chmod +x up.sh down.sh
-./up.sh
+cd ssp-doc/local-dev
+chmod +x install.sh bootstrap.sh up.sh down.sh verify.sh
+./install.sh --bootstrap
 ```
 
-`up.sh` resolves sibling repos, runs `docker compose up -d --build`, runs migrations against **local** Postgres, then starts API, worker, and portal.
+**Existing ~/ssp layout:**
+
+```bash
+cd ssp-doc/local-dev && ./install.sh
+```
+
+Do **not** set `SSP_*_REPO` in `.env` — siblings of `ssp-doc` are auto-detected. Optional `.env` only for `SSP_ASSISTANT_*`.
 
 ## Verify
 

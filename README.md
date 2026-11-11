@@ -8,7 +8,7 @@ SPP is built, verified, and governed by an **AI Software Factory ("Dark Factory"
 
 ### Run the product on a laptop (local E2E)
 
-See **[`local-dev/README.md`](local-dev/README.md)** — `./up.sh` starts **local Postgres** (Docker), Temporal, `ssp-cp`, `ssp-workers`, and `ssp-ui` for portal testing on `localhost`. **Claude Code:** use `/spp-local-setup` (see `.claude/skills/spp-local-setup/SKILL.md`).
+See **[`local-dev/PORTABLE.md`](local-dev/PORTABLE.md)** — on a new machine: `cd ssp-doc/local-dev && ./install.sh --bootstrap`. **Claude Code:** `/spp-local-setup` (`.claude/skills/spp-local-setup/SKILL.md`).
 
 ---
 
